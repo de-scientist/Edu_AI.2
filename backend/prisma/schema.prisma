@@ -1,0 +1,161 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  STUDENT
+  LECTURER
+  ADMIN
+}
+
+model User {
+  id           String        @id @default(uuid())
+  name         String
+  email        String        @unique
+  password     String
+  createdAt    DateTime      @default(now())
+  progress     Progress[]
+  interactions Interaction[]
+}
+
+model Course {
+  id         String     @id @default(uuid())
+  title      String
+  desription String
+  platform   String
+  url        String
+  students   Progress[]
+  createdAt  DateTime   @default(now())
+}
+
+model Progress {
+  id        String   @id @default(uuid())
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  course    Course   @relation(fields: [courseId], references: [id])
+  courseId  String
+  progress  Float    @default(0.0) // 0.0 to 100.0 percentage
+  updatedAt DateTime @updatedAt
+}
+
+model Interaction {
+  id         String   @id @default(uuid())
+  user       User     @relation(fields: [userId], references: [id])
+  userId     String
+  lecturerId String?
+  message    String
+  timestamp  DateTime @default(now())
+}
+
+model Analytics {
+  id                String   @id @default(uuid())
+  totalUsers        Int
+  activeUsers       Int
+  courseCompletions Int
+  timestamp         DateTime @default(now())
+}
+
+model Recommendation {
+  id                String   @id @default(uuid())
+  userId            String
+  courseId          String
+  courseTitle       String
+  courseDescription String?
+  courseURL         String
+  platform          String // Coursera, Udemy, EdX, etc.
+  createdAt         DateTime @default(now())
+}
+
+model Student {
+  id           String        @id @default(uuid())
+  name         String
+  points       Int           @default(0)
+  badges       Badge[]
+  achievements Achievement[] @relation(name: "StudentAchievements")
+}
+
+model Badge {
+  id        String  @id @default(uuid())
+  name      String
+  studentId String
+  student   Student @relation(fields: [studentId], references: [id])
+}
+
+model Question {
+  id          String   @id @default(uuid())
+  text        String
+  options     String[]
+  answer      String
+  explanation String
+}
+
+model StudentPerformance {
+  id        String @id @default(uuid())
+  studentId String
+  topic     String
+  score     Int
+}
+
+model StudyPlan {
+  id        String   @id @default(uuid())
+  studentId String
+  topic     String
+  date      DateTime
+}
+
+model StudyGoal {
+  id        String  @id @default(uuid())
+  studentId String
+  goal      String
+  completed Boolean @default(false)
+}
+
+model Reminder {
+  id        String @id @default(uuid())
+  studentId String
+  message   String
+  sendTime  String
+  sent      String
+}
+
+model Quiz {
+  id        String   @id @default(uuid())
+  studentId String
+  question  String
+  options   String[]
+  answer    String
+}
+
+model Performance {
+  id        String @id @default(uuid())
+  studentId String
+  courseId  String
+  topic     String
+  score     Int
+}
+
+model Gamification {
+  id        String   @id @default(uuid())
+  studentId String
+  xpPoints  Int      @default(0)
+  badges    String[]
+}
+
+model Achievement {
+  id       String    @id @default(uuid())
+  name     String
+  icon     String //e.g., badge_gold.png
+  points   Int
+  students Student[] @relation(name: "StudentAchievements")
+}
