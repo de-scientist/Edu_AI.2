@@ -25,7 +25,8 @@ const userEncoder = joblib.load("user_encoder.pkl");
 const courseEncoder = joblib.load("course_encoder.pkl");
 const scaler = joblib.load("scaler.pkl");
 const recommender = joblib.load("course_recommender.pk1");
-const openai = new OpenAI({ apiKey: ""});
+const openai = new OpenAI({ apiKey: "process.env.OPENAI_API_KEY"});
+
 
 const COURSERA_API_URL = "https://api.coursera.org/api/courses.v1";
 const API_KEY = "your_coursera_api_key"; 
