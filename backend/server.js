@@ -6,6 +6,9 @@ import joblib from "joblib";
 import Redis from "ioredis";
 import axios from "axios"; // Ensure axios is imported
 import { Server } from "socket.io";
+import bcrypt from "bcryptjs";
+import fastifyJwt from "@fastify/jwt";
+import fastifyCookie from "@fastify/cookie";
 import prisma from "./prisma/db.js";
 import { fetchCourseraCourses } from "./services/coursera.js";
 import { fetchUdemyCourses } from "./services/udemy.js";
@@ -26,7 +29,7 @@ const courseEncoder = joblib.load("course_encoder.pkl");
 const scaler = joblib.load("scaler.pkl");
 const recommender = joblib.load("course_recommender.pk1");
 const openai = new OpenAI({ apiKey: "process.env.OPENAI_API_KEY"});
-
+fastify.register(fastifySocketIO);
 
 const COURSERA_API_URL = "https://api.coursera.org/api/courses.v1";
 const API_KEY = "your_coursera_api_key"; 
@@ -38,6 +41,184 @@ const EDX_API_KEY = "your_edx_api_key";
 
 const fastify = Fastify({ logger: true });
 fastify.register(cors, { origin: "*" });
+
+//Track online users and Broadcast updates when Users connect/disconnect
+let onlineUsers = new Map();
+
+fastify.ready().then(() => {
+  fastify.io.on("connection", (socket) => {
+    console.log("User connected:", socket.id);
+
+    socket.on("userOnline", (userId) => {
+      onlineUsers.set(userId, socket.id);
+      fastify.io.emit("updateUsers", Array.from(onlineUsers.keys()));
+    });
+
+    socket.on("disconnect", () => {
+      for (let [userId, sockId] of onlineUsers.entries()) {
+        if (sockId === socket.id) {
+          onlineUsers.delete(userId);
+        }
+      }
+      fastify.io.emit("updateUsers", Array.from(onlineUsers.keys()));
+    });
+  });
+});
+
+//WebSockets only allow authenticated users
+fastify.ready().then(() => {
+  fastify.io.use((socket, next) => {
+    const token = socket.handshake.auth?.token;
+    if (!token) return next(new Error("Unauthorized"));
+
+    try {
+      const user = fastify.jwt.verify(token);
+      socket.user = user;
+      next();
+    } catch (err) {
+      return next(new Error("Invalid token"));
+    }
+  });
+
+  fastify.io.on("connection", (socket) => {
+    console.log("User connected:", socket.user.id);
+
+    socket.on("disconnect", () => {
+      console.log("User disconnected:", socket.user.id);
+    });
+  });
+});
+
+//Register JWT with a secret key
+fastify.register(fastifyJwt, { secret: "your_secret_key" });
+fastify.register(fastifyCookie);
+
+fastify.decorate("authenticate", async (req, reply) => {
+  try {
+    await req.jwtVerify();
+  } catch (err) {
+    reply.status(401).send({ error: "Unauthorized" });
+  }
+});
+
+//User Register/SignUp
+fastify.post("/register", async (req, reply) => {
+  const { name, email, password, role } = req.body;
+  const hashedPassword = await bcrypt.hash(password, 10);
+
+  try {
+    const user = await prisma.user.create({
+      data: { name, email, password: hashedPassword, role },
+    });
+    reply.send({ message: "User registered", user });
+  } catch (error) {
+    reply.status(400).send({ error: "Email already in use" });
+  }
+});
+
+//User login/SignIn with Refresh Token 
+fastify.post("/login", async (req, reply) => {
+  const { email, password } = req.body;
+  const user = await prisma.user.findUnique({ where: { email } });
+
+  if (!user || !(await bcrypt.compare(password, user.password))) {
+    return reply.status(401).send({ error: "Invalid Password! Input Correct Password" });
+  }
+
+  await prisma.loginHistory.create({ data: { userId: user.id } });
+
+  const accessToken = fastify.jwt.sign(
+    { id: user.id, role: user.role },
+    { expiresIn: "15m" } // Short expiry for security
+  );
+
+  const refreshToken = fastify.jwt.sign(
+    { id: user.id },
+    { expiresIn: "7d" } // Longer expiry
+  );
+
+  reply.setCookie("refreshToken", refreshToken, {
+    httpOnly: true,
+    secure: true,
+    path: "/refresh-token",
+  });
+
+  reply.send({ accessToken });
+
+  const token = fastify.jwt.sign({ id: user.id, role: user.role });
+  reply.send({ token });
+
+fastify.get("/users", async (req, reply) => {
+  const users = await prisma.user.findMany();
+  reply.send(users);
+});
+
+//Refresh Token Endpoint- Allows users get a new access token without logging in again
+fastify.post("/refresh-token", async (req, reply) => {
+  const { refreshToken } = req.cookies;
+
+  if (!refreshToken) {
+    return reply.status(401).send({ error: "No refresh token" });
+  }
+
+  try {
+    const decoded = fastify.jwt.verify(refreshToken);
+    const newAccessToken = fastify.jwt.sign({ id: decoded.id, role: decoded.role }, { expiresIn: "15m" });
+
+    reply.send({ accessToken: newAccessToken });
+  } catch (err) {
+    reply.status(401).send({ error: "Invalid refresh token" });
+  }
+});
+
+
+
+fastify.delete("/users/:id", async (req, reply) => {
+  await prisma.user.delete({ where: { id: req.params.id } });
+  reply.send({ message: "User deleted" });
+});
+
+//Admin Dashboard API for Analytics
+fastify.get("/admin/stats", { preHandler: [fastify.authenticate] }, async (req, reply) => {
+  if (req.user.role !== "admin") {
+    return reply.status(403).send({ error: "Forbidden" });
+  }
+
+  const totalUsers = await prisma.user.count();
+  const totalLogins = await prisma.loginHistory.count();
+  const roleStats = await prisma.user.groupBy({
+    by: ["role"],
+    _count: { role: true },
+  });
+
+  reply.send({ totalUsers, totalLogins, roleStats });
+});
+
+
+//Secure Routes Based on Roles
+//Only Admins can Access User Management Routes
+fastify.get("/admin/users", { preHandler: [fastify.authenticate] }, async (req, reply) => {
+  if (req.user.role !== "admin") return reply.status(403).send({ error: "Forbidden" });
+
+  const users = await prisma.user.findMany();
+  reply.send(users);
+});
+
+
+//Handle WebSocket connection
+//Listen for messages and broadcast them
+fastify.ready().then(() => {
+  fastify.io.on("connection", (socket) => {
+    console.log("User connected:", socket.id);
+
+    socket.on("sendMessage", (msg) => {
+      fastify.io.emit("receiveMessage", msg);
+    });
+
+    socket.on("disconnect", () => console.log("User disconnected"));
+  });
+});
+
 
 
 // WebSocket setup

@@ -21,12 +21,15 @@ enum Role {
 
 model User {
   id           String        @id @default(uuid())
+  userId       String        @unique
   name         String
   email        String        @unique
   password     String
   createdAt    DateTime      @default(now())
   progress     Progress[]
   interactions Interaction[]
+  role         String  @default("student")
+  loginHistory LoginHistory
 }
 
 model Course {
@@ -158,4 +161,11 @@ model Achievement {
   icon     String //e.g., badge_gold.png
   points   Int
   students Student[] @relation(name: "StudentAchievements")
+}
+
+model LoginHistory {
+  id        String @id @default(uuid())
+  userId    String @unique
+  timeStamp DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
 }
