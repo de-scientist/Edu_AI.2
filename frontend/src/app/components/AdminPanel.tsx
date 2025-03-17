@@ -57,6 +57,7 @@ return (
     {users.map((user) => (
       <div key={user.id}>{user.name} - {user.role}</div>
     ))}
+    
   </div>
 );
 }
@@ -72,6 +73,7 @@ useEffect(() => {
 return (
   <div>
     <h1>Admin Dashboard</h1>
+    
     {stats && (
       <>
         <p>Total Users: {stats.totalUsers}</p>
@@ -84,6 +86,28 @@ return (
         </ul>
       </>
     )}
+  </div>
+);
+}
+
+
+useEffect(() => {
+  fetch("http://localhost:5000/admin/users", {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+    .then((res) => res.json())
+    .then((data) => setUsers(data))
+    .catch((err) => console.error("Access denied", err));
+}, []);
+
+return (
+  <div>
+    <h1>Admin Panel</h1>
+    <ul>
+      {users.map((user) => (
+        <li key={user.id}>{user.email} - {user.role}</li>
+      ))}
+    </ul>
   </div>
 );
 }

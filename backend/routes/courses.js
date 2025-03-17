@@ -1,5 +1,7 @@
+import Fastify from "fastify";
 import { PrismaClient } from "@prisma/client";
 
+const fastify = Fastify();
 const prisma = new PrismaClient();
 
 export default async function courseRoutes(fastify, options) {
