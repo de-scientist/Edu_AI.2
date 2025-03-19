@@ -1,26 +1,22 @@
 // Import necessary modules
 import Fastify from "fastify";
-import fetch from 'node-fetch'; // For making API requests
+import fetch from "node-fetch"; // For making API requests
 globalThis.fetch = fetch;
 import websocket from "@fastify/websocket"; // WebSocket support
 import cors from "@fastify/cors"; // CORS for cross-origin requests
-import Redis from "ioredis"; // Redis for caching and real-time communication
 import axios from "axios"; // HTTP requests
-import { Server } from "socket.io"; // WebSocket for real-time communication
-import fastifySocketIO from "fastify-socket.io";
+import fastifySocketIO from "fastify-socket.io"; // Fastify Socket.io plugin
 import speakeasy from "speakeasy"; // 2FA authentication
-import nodemailer from "nodemailer"; // Email services
 import bcrypt from "bcryptjs"; // Password hashing
 import fastifyJwt from "@fastify/jwt"; // JWT authentication
 import fastifyCookie from "@fastify/cookie"; // Cookie support
 import prisma from "./prisma/db.js"; // Database ORM
+import OpenAI from "openai";
+import dotenv from "dotenv";
 
-// Import AI and Course-related services
-import { fetchAndStoreCourseraCourses } from "./services/coursera.js";
-import { fetchUdemyCourses } from "./services/udemy.js";
+dotenv.config(); // Load environment variables from .env file
 
 // Import routes
-import myPreHandler from './middleware/auth.js';
 import courseRoutes from "./routes/courses.js";
 import progressRoutes from "./routes/progress.js";
 import interactionRoutes from "./routes/interactions.js";
@@ -28,8 +24,10 @@ import analyticsRoutes from "./routes/analytics.js";
 import adminRoutes from "./routes/admin.js";
 import authRoutes from "./routes/auth.js";
 
-// OpenAI API integration
-import OpenAI from "openai";
+// Import helper functions
+import { hashPassword, comparePassword, authenticate } from "./helpers/auth.js";
+import { sendNotification } from "./helpers/notifications.js";
+import { transporter, sendEmail } from "./helpers/email.js";
 
 // Initialize Fastify server with logging enabled
 const fastify = Fastify({ logger: true });
@@ -37,27 +35,34 @@ const fastify = Fastify({ logger: true });
 // Enable CORS to allow requests from different origins
 fastify.register(cors, { origin: "*" });
 
-// Register WebSocket support
-fastify.register(websocket);
-fastify.register(fastifySocketIO);
+// Register plugins before using them
+fastify.register(fastifyJwt, {
+  secret: process.env.JWT_SECRET,
+}); // JWT authentication
+fastify.register(fastifyCookie); // Cookie support
+fastify.register(fastifySocketIO); // WebSocket support
 
-// Initialize Socket.io for real-time events
-const io = new Server(fastify.server, { cors: { origin: "*" } });
+// In-memory cache (Replacing Redis)
+const cache = new Map();
 
-// Initialize Redis for caching
-const redis = new Redis();
+// Cache helper functions
+const setCache = (key, value, ttl = 60000) => {
+  cache.set(key, { value, expires: Date.now() + ttl });
+  setTimeout(() => cache.delete(key), ttl); // Auto-remove after TTL expires
+};
+
+const getCache = (key) => {
+  const cached = cache.get(key);
+  if (!cached) return null;
+  if (Date.now() > cached.expires) {
+    cache.delete(key);
+    return null;
+  }
+  return cached.value;
+};
 
 // OpenAI API Key (ensure it's stored in environment variables for security)
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
-// API credentials for Coursera, Udemy, and edX
-const COURSERA_API_URL = "https://api.coursera.org/api/courses.v1";
-const API_KEY = "your_coursera_api_key"; 
-const UDEMY_API_URL = "https://www.udemy.com/api-2.0/courses/";
-const UDEMY_CLIENT_ID = "your_udemy_client_id";  
-const UDEMY_CLIENT_SECRET = "your_udemy_client_secret"; 
-const EDX_API_URL = "https://api.edx.org/catalog/v1/courses";
-const EDX_API_KEY = "your_edx_api_key"; 
 
 // Register route handlers
 fastify.register(authRoutes);
@@ -69,87 +74,6 @@ fastify.register(analyticsRoutes);
 // Track online users
 let onlineUsers = new Map();
 
-// Handle WebSocket connections for online users
-fastify.ready().then(() => {
-  fastify.io.on("connection", (socket) => {
-    console.log("User connected:", socket.id);
-
-    socket.on("userOnline", (userId) => {
-      onlineUsers.set(userId, socket.id);
-      fastify.io.emit("updateUsers", Array.from(onlineUsers.keys()));
-    });
-
-    socket.on("disconnect", () => {
-      for (let [userId, sockId] of onlineUsers.entries()) {
-        if (sockId === socket.id) {
-          onlineUsers.delete(userId);
-        }
-      }
-      fastify.io.emit("updateUsers", Array.from(onlineUsers.keys()));
-    });
-  });
-});
-
-// Handle real-time notifications
-fastify.ready().then(() => {
-  fastify.io.on("connection", (socket) => {
-    console.log("User connected:", socket.id);
-
-    socket.on("send_notification", (data) => {
-      fastify.io.emit("receive_notification", data);
-    });
-
-    socket.on("disconnect", () => {
-      console.log("User disconnected:", socket.id);
-    });
-  });
-});
-
-// WebSocket authentication middleware
-fastify.ready().then(() => {
-  fastify.io.use((socket, next) => {
-    const token = socket.handshake.auth?.token;
-    if (!token) return next(new Error("Unauthorized"));
-
-    try {
-      const user = fastify.jwt.verify(token);
-      socket.user = user;
-      next();
-    } catch (err) {
-      return next(new Error("Invalid token"));
-    }
-  });
-
-  fastify.io.on("connection", (socket) => {
-    console.log("User connected:", socket.user.id);
-
-    socket.on("disconnect", () => {
-      console.log("User disconnected:", socket.user.id);
-    });
-  });
-});
-
-// Email transporter setup using Gmail SMTP
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: { user: "your-email@gmail.com", pass: "your-password" },
-});
-
-// Enable Two-Factor Authentication (2FA)
-fastify.post("/enable-2fa", { preHandler: [fastify.authenticate] }, async (req, reply) => {
-  const secret = speakeasy.generateSecret();
-  await prisma.user.update({
-    where: { id: req.user.id },
-    data: { otpSecret: secret.base32 },
-  });
-
-  reply.send({ message: "2FA enabled. Use this secret in Google Authenticator.", secret: secret.otpauth_url });
-});
-
-// JWT and Cookie authentication setup
-fastify.register(fastifyJwt, { secret: "your_secret_key" });
-fastify.register(fastifyCookie);
-
 // Middleware to authenticate JWT
 fastify.decorate("authenticate", async (req, reply) => {
   try {
@@ -159,13 +83,74 @@ fastify.decorate("authenticate", async (req, reply) => {
   }
 });
 
+// Ensure Fastify is ready before using WebSockets
+fastify.ready().then(() => {
+  console.log("Fastify is ready. WebSockets can now be used.");
+
+  // WebSocket authentication middleware
+  fastify.io.use(async (socket, next) => {
+    const token = socket.handshake.auth?.token;
+    if (!token) return next(new Error("Unauthorized"));
+
+    try {
+      const user = await fastify.jwt.verify(token);
+      socket.user = user;
+      next();
+    } catch (err) {
+      return next(new Error("Invalid token"));
+    }
+  });
+
+  // Handle WebSocket connections
+  fastify.io.on("connection", (socket) => {
+    console.log("User connected:", socket.user?.id || socket.id);
+
+    socket.on("userOnline", () => {
+      if (socket.user?.id) {
+        onlineUsers.set(socket.user.id, socket.id);
+        fastify.io.emit("updateUsers", Array.from(onlineUsers.keys()));
+      }
+    });
+
+    socket.on("disconnect", () => {
+      if (socket.user?.id) {
+        onlineUsers.delete(socket.user.id);
+      }
+      fastify.io.emit("updateUsers", Array.from(onlineUsers.keys()));
+      console.log("User disconnected:", socket.user?.id || socket.id);
+    });
+  });
+}).catch((err) => {
+  console.error("Error initializing Fastify:", err);
+});
+
+// Enable Two-Factor Authentication (2FA)
+fastify.post(
+  "/enable-2fa",
+  { preHandler: fastify.authenticate },
+  async (req, reply) => {
+    const secret = speakeasy.generateSecret();
+    await prisma.user.update({
+      where: { id: req.user.id },
+      data: { otpSecret: secret.base32 },
+    });
+
+    reply.send({
+      message: "2FA enabled. Use this secret in Google Authenticator.",
+      secret: secret.otpauth_url,
+    });
+  }
+);
+
 // User Registration
 fastify.post("/register", async (req, reply) => {
   const { name, email, password, role } = req.body;
   const hashedPassword = await bcrypt.hash(password, 10);
 
   try {
-    const user = await prisma.user.create({ data: { name, email, password: hashedPassword, role } });
+    const user = await prisma.user.create({
+      data: { name, email, password: hashedPassword, role },
+    });
     reply.send({ message: "User registered", user });
   } catch (error) {
     reply.status(400).send({ error: "Email already in use" });
@@ -184,7 +169,11 @@ fastify.post("/login", async (req, reply) => {
   const accessToken = fastify.jwt.sign({ id: user.id, role: user.role }, { expiresIn: "15m" });
   const refreshToken = fastify.jwt.sign({ id: user.id }, { expiresIn: "7d" });
 
-  reply.setCookie("refreshToken", refreshToken, { httpOnly: true, secure: true, path: "/refresh-token" });
+  reply.setCookie("refreshToken", refreshToken, {
+    httpOnly: true,
+    secure: true,
+    path: "/refresh-token",
+  });
 
   fastify.io.emit("receive_notification", { type: "login", message: `${user.email} has logged in.` });
 
@@ -205,15 +194,17 @@ fastify.post("/refresh-token", async (req, reply) => {
 
     reply.send({ accessToken: newAccessToken });
   } catch (err) {
-    reply.status(401).send({ error: "Invalid refresh token" });
+    return reply.status(401).send({ error: "Invalid refresh token" });
   }
 });
 
-// Protect this route using the preHandler middleware
-app.post('/api/protected', { preHandler: myPreHandler }, async (req, reply) => {
-  reply.send({ message: `Hello, ${req.user.username}` });
+// Secure endpoint using authentication middleware
+fastify.post("/secure-endpoint", {
+  preHandler: [fastify.authenticate],
+  handler: async (req, reply) => {
+    reply.send({ message: "You are authenticated", user: req.user });
+  },
 });
-
 
 // Admin Dashboard Analytics
 fastify.get("/admin/stats", { preHandler: [fastify.authenticate] }, async (req, reply) => {
@@ -221,7 +212,7 @@ fastify.get("/admin/stats", { preHandler: [fastify.authenticate] }, async (req, 
 
   const totalUsers = await prisma.user.count();
   const totalLogins = await prisma.loginHistory.count();
-  const roleStats = await prisma.user.groupBy({ by: ["role"], _count: { role: true } });
+  const roleStats = await prisma.user.groupBy({ by: ["role"], _count: true });
 
   reply.send({ totalUsers, totalLogins, roleStats });
 });

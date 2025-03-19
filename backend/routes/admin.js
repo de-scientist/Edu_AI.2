@@ -26,7 +26,7 @@ export default async function adminRoutes(fastify, options) {
       reply.send(logs);
     });
 
-    fastify.get("/admin/user-logs", async (req, reply) => {
+    fastify.get("/admin/user-logs2", async (req, reply) => {
       const { authorization } = req.headers;
       if (!authorization) return reply.status(403).send({ error: "No token provided" });
   
