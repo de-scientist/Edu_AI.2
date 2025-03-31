@@ -9,6 +9,8 @@ import Footer from "@components/Footer";
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
+    <html lang='en'>
+      <body>
     <SessionProvider>  {/* ✅ Wrap everything in SessionProvider */}
       <div className="app-container">
         <Navbar />
@@ -17,5 +19,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <Footer />
       </div>
     </SessionProvider>
+    </body>
+    </html>
   );
 }

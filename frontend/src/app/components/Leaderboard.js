@@ -1,9 +1,9 @@
+"use client";
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { motion } from "framer-motion";
 
-
-const Leaderboard = () => {
+const TopStudents = () => {  // ✅ Renamed to avoid duplication
   const [students, setStudents] = useState([]);
 
   useEffect(() => {
@@ -38,9 +38,13 @@ export default function Leaderboard() {
 
   useEffect(() => {
     const fetchLeaderboard = async () => {
-      const response = await fetch("http://localhost:5000/leaderboard");
-      const data = await response.json();
-      setLeaders(data);
+      try {
+        const response = await fetch("http://localhost:5000/leaderboard");
+        const data = await response.json();
+        setLeaders(data);
+      } catch (error) {
+        console.error("Error fetching leaderboard data:", error);
+      }
     };
     fetchLeaderboard();
   }, []);
@@ -57,7 +61,9 @@ export default function Leaderboard() {
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.5, delay: index * 0.1 }}
           >
-            <span className="font-bold text-gray-700">{index + 1}. {student.name}</span>
+            <span className="font-bold text-gray-700">
+              {index + 1}. {student.name}
+            </span>
             <span className="text-blue-500 font-semibold">{student.points} pts</span>
           </motion.li>
         ))}
@@ -65,5 +71,3 @@ export default function Leaderboard() {
     </div>
   );
 }
-
-//export default Leaderboard;

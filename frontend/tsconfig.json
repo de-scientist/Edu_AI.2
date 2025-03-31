@@ -13,7 +13,8 @@
     "isolatedModules": true,
     "jsx": "preserve",
     "incremental": true,
-    "baseUrl": "./src",  
+    "baseUrl": "./src",
+    "forceConsistentCasingInFileNames": true,  
     "paths": {
       "@components/*": ["app/components/*"],  // ✅ Fix component alias
       "@styles/*": ["app/styles/*"],  // ✅ Fix styles alias

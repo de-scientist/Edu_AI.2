@@ -19,3 +19,8 @@ declare module "next-auth" {
     role: string;
   }
 }
+
+type LearningPathProps = {
+  studentId?: any; // The '?' makes it optional
+};
+

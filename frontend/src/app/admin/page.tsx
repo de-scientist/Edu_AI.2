@@ -4,7 +4,7 @@ import AdminDashboard from "@/app/components/AdminDashboard";
 import LeaderBoard from "@/app/components/Leaderboard";
 import PerformanceDashboard from "@/app/components/PerformanceDashboard";
 import ProgressChart from "@/app/components/ProgressChart";
-import Recommendation from "@/app/components/Recommendation";
+import Recommendation from "@/app/components/Recommendations";
 
 export default function AdminPage() {
 

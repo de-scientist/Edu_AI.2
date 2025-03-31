@@ -28,7 +28,7 @@ model User {
   createdAt         DateTime      @default(now())
   progress          Progress[]
   interactions      Interaction[]
-  role              String        @default("student")
+  role              Role          @default(STUDENT)
   otpSecret         String? // Stores 2FA secret
   loginHistory      LoginHistory?
   resetToken        String?       @unique
@@ -38,13 +38,13 @@ model User {
 }
 
 model Course {
-  id         String     @id @default(uuid())
-  title      String
-  desription String
-  platform   String
-  url        String
-  students   Progress[]
-  createdAt  DateTime   @default(now())
+  id          String     @id @default(uuid())
+  title       String
+  description String
+  platform    String
+  url         String
+  students    Progress[]
+  createdAt   DateTime   @default(now())
 }
 
 model Progress {

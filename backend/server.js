@@ -1,20 +1,23 @@
 // Import necessary modules
 import Fastify from "fastify";
-import fetch from "node-fetch"; // For making API requests
+import fetch from "node-fetch";
 globalThis.fetch = fetch;
-import websocket from "@fastify/websocket"; // WebSocket support
-import cors from "@fastify/cors"; // CORS for cross-origin requests
-import axios from "axios"; // HTTP requests
-import fastifySocketIO from "fastify-socket.io"; // Fastify Socket.io plugin
-import speakeasy from "speakeasy"; // 2FA authentication
-import bcrypt from "bcryptjs"; // Password hashing
-import fastifyJwt from "@fastify/jwt"; // JWT authentication
-import fastifyCookie from "@fastify/cookie"; // Cookie support
-import prisma from "./prisma/db.js"; // Database ORM
+import websocket from "@fastify/websocket";
+import cors from "@fastify/cors";
+import axios from "axios";
+import fastifySocketIO from "fastify-socket.io";
+import speakeasy from "speakeasy";
+import bcrypt from "bcryptjs";
+import fastifyJwt from "@fastify/jwt";
+import fastifyCookie from "@fastify/cookie";
+import prisma from "./prisma/db.js";
+import fastifyFormbody from "@fastify/formbody";  
+//import fastifyJson from "@fastify/json"; 
 import OpenAI from "openai";
 import dotenv from "dotenv";
 
-dotenv.config(); // Load environment variables from .env file
+dotenv.config();
+
 
 // Import routes
 import courseRoutes from "./routes/courses.js";
@@ -29,39 +32,46 @@ import { hashPassword, comparePassword, authenticate } from "./helpers/auth.js";
 import { sendNotification } from "./helpers/notifications.js";
 import { transporter, sendEmail } from "./helpers/email.js";
 
-// Initialize Fastify server with logging enabled
+// Initialize Fastify
 const fastify = Fastify({ logger: true });
 
-// Enable CORS to allow requests from different origins
-fastify.register(cors, { origin: "*" });
+// CORS Config
+fastify.register(cors, {
+  origin: ["http://localhost:3000"],
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  credentials: true,
+});
 
-// Register plugins before using them
-fastify.register(fastifyJwt, {
-  secret: process.env.JWT_SECRET,
-}); // JWT authentication
-fastify.register(fastifyCookie); // Cookie support
-fastify.register(fastifySocketIO); // WebSocket support
+// Register plugins
+fastify.register(fastifyJwt, { secret: process.env.JWT_SECRET });
+fastify.register(fastifyCookie);
+fastify.register(fastifyFormbody); 
+//fastify.register(fastifyJson);  
+fastify.register(fastifySocketIO, {
+  cors: {
+    origin: ["http://localhost:3000"],
+    methods: ["GET", "POST"],
+    credentials: true,
+  },
+});
 
-// In-memory cache (Replacing Redis)
+// In-memory cache
 const cache = new Map();
-
-// Cache helper functions
 const setCache = (key, value, ttl = 60000) => {
   cache.set(key, { value, expires: Date.now() + ttl });
-  setTimeout(() => cache.delete(key), ttl); // Auto-remove after TTL expires
+  setTimeout(() => cache.delete(key), ttl);
 };
-
 const getCache = (key) => {
   const cached = cache.get(key);
-  if (!cached) return null;
-  if (Date.now() > cached.expires) {
+  if (!cached || Date.now() > cached.expires) {
     cache.delete(key);
     return null;
   }
   return cached.value;
 };
 
-// OpenAI API Key (ensure it's stored in environment variables for security)
+// OpenAI API
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 // Register route handlers
@@ -70,11 +80,24 @@ fastify.register(adminRoutes);
 fastify.register(courseRoutes);
 fastify.register(progressRoutes);
 fastify.register(analyticsRoutes);
+fastify.register(interactionRoutes)
+
+
+/* Register the JSON parser
+fastify.addContentTypeParser('application/json', { parseAs: 'string' }, (req, body, done) => {
+  try {
+    const parsed = JSON.parse(body);
+    done(null, parsed);
+  } catch (err) {
+    done(err);
+  }
+});*/
+
 
 // Track online users
 let onlineUsers = new Map();
 
-// Middleware to authenticate JWT
+// Authenticate Middleware
 fastify.decorate("authenticate", async (req, reply) => {
   try {
     await req.jwtVerify();
@@ -83,25 +106,27 @@ fastify.decorate("authenticate", async (req, reply) => {
   }
 });
 
-// Ensure Fastify is ready before using WebSockets
+// WebSockets
 fastify.ready().then(() => {
   console.log("Fastify is ready. WebSockets can now be used.");
 
-  // WebSocket authentication middleware
   fastify.io.use(async (socket, next) => {
     const token = socket.handshake.auth?.token;
-    if (!token) return next(new Error("Unauthorized"));
+    if (!token) {
+      console.log("WebSocket rejected: No token.");
+      return next(new Error("Unauthorized"));
+    }
 
     try {
       const user = await fastify.jwt.verify(token);
       socket.user = user;
       next();
     } catch (err) {
+      console.log("WebSocket auth failed:", err.message);
       return next(new Error("Invalid token"));
     }
   });
 
-  // Handle WebSocket connections
   fastify.io.on("connection", (socket) => {
     console.log("User connected:", socket.user?.id || socket.id);
 
@@ -143,19 +168,42 @@ fastify.post(
 );
 
 // User Registration
-fastify.post("/register", async (req, reply) => {
-  const { name, email, password, role } = req.body;
-  const hashedPassword = await bcrypt.hash(password, 10);
+fastify.post(
+  "/api/signup",
+  {
+    schema: {
+      body: {
+        type: "object",
+        required: ["name", "email", "password", "role"],
+        properties: {
+          name: { type: "string", minLength: 2 },
+          email: { type: "string", format: "email" },
+          password: { type: "string", minLength: 6 },
+          role: { type: "string", enum: ["STUDENT", "LECTURER", "ADMIN"] }
+        }
+      }
+    }
+  },
+  async (req, reply) => {
+    const { name, email, password, role } = req.body;
 
-  try {
-    const user = await prisma.user.create({
-      data: { name, email, password: hashedPassword, role },
-    });
-    reply.send({ message: "User registered", user });
-  } catch (error) {
-    reply.status(400).send({ error: "Email already in use" });
+    // Hash the password
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    try {
+      const user = await prisma.user.create({
+        data: { name, email, password: hashedPassword, role },
+      });
+      reply.send({ message: "User registered successfully", user });
+    } catch (error) {
+      if (error.code === "P2002") {  // Prisma unique constraint error
+        return reply.status(400).send({ error: "Email already in use" });
+      }
+      reply.status(500).send({ error: "Internal Server Error" });
+    }
   }
-});
+);
+
 
 // User Login with JWT Authentication
 fastify.post("/login", async (req, reply) => {
@@ -180,18 +228,14 @@ fastify.post("/login", async (req, reply) => {
   reply.send({ accessToken });
 });
 
-// Refresh JWT token
+// Refresh Token
 fastify.post("/refresh-token", async (req, reply) => {
-  const { refreshToken } = req.cookies;
-
-  if (!refreshToken) {
-    return reply.status(401).send({ error: "No refresh token" });
-  }
+  const refreshToken = req.cookies?.refreshToken;
+  if (!refreshToken) return reply.status(401).send({ error: "No refresh token" });
 
   try {
     const decoded = fastify.jwt.verify(refreshToken);
     const newAccessToken = fastify.jwt.sign({ id: decoded.id, role: decoded.role }, { expiresIn: "15m" });
-
     reply.send({ accessToken: newAccessToken });
   } catch (err) {
     return reply.status(401).send({ error: "Invalid refresh token" });
