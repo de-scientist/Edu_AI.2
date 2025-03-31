@@ -11,15 +11,29 @@ import bcrypt from "bcryptjs";
 import fastifyJwt from "@fastify/jwt";
 import fastifyCookie from "@fastify/cookie";
 import prisma from "./prisma/db.js";
-import fastifyFormbody from "@fastify/formbody";  
+//import fastifyFormbody from "@fastify/formbody";  
 //import fastifyJson from "@fastify/json"; 
 import OpenAI from "openai";
 import dotenv from "dotenv";
+import jwt from "jsonwebtoken";
 
 dotenv.config();
 
 
+// ✅ Test Prisma Database Connection before starting the server
+async function testDatabaseConnection() {
+  try {
+    await prisma.$connect();
+    console.log("✅ Connected to database.");
+  } catch (error) {
+    console.error("❌ Database connection failed:", error);
+    process.exit(1); // Exit if DB connection fails
+  }
+}
+testDatabaseConnection();  // Call the function before running Fastify
+
 // Import routes
+import myPreHandler from "./middleware/auth.js"; // Authentication middleware
 import courseRoutes from "./routes/courses.js";
 import progressRoutes from "./routes/progress.js";
 import interactionRoutes from "./routes/interactions.js";
@@ -46,7 +60,7 @@ fastify.register(cors, {
 // Register plugins
 fastify.register(fastifyJwt, { secret: process.env.JWT_SECRET });
 fastify.register(fastifyCookie);
-fastify.register(fastifyFormbody); 
+fastify.register(import("@fastify/formbody"));
 //fastify.register(fastifyJson);  
 fastify.register(fastifySocketIO, {
   cors: {
@@ -82,16 +96,18 @@ fastify.register(progressRoutes);
 fastify.register(analyticsRoutes);
 fastify.register(interactionRoutes)
 
+// 📌 Middleware for authentication
+fastify.addHook("preHandler", myPreHandler);
 
-/* Register the JSON parser
-fastify.addContentTypeParser('application/json', { parseAs: 'string' }, (req, body, done) => {
+// Register the JSON parser
+fastify.addContentTypeParser("application/json", { parseAs: "string" }, (req, body, done) => {
   try {
     const parsed = JSON.parse(body);
     done(null, parsed);
   } catch (err) {
     done(err);
   }
-});*/
+});
 
 
 // Track online users
@@ -102,9 +118,11 @@ fastify.decorate("authenticate", async (req, reply) => {
   try {
     await req.jwtVerify();
   } catch (err) {
+    console.error("JWT Authentication Error:", err);  // 🔥 Debug this!
     reply.status(401).send({ error: "Unauthorized" });
   }
 });
+
 
 // WebSockets
 fastify.ready().then(() => {
@@ -185,7 +203,12 @@ fastify.post(
     }
   },
   async (req, reply) => {
+    console.log("User Registration Request:", req.body); // Debug log
+   
     const { name, email, password, role } = req.body;
+    if (!name || !email || !password || !role) {
+      return reply.status(400).send({ error: "All fields are required" });
+    }
 
     // Hash the password
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -196,36 +219,49 @@ fastify.post(
       });
       reply.send({ message: "User registered successfully", user });
     } catch (error) {
+      console.error("Error during user registration:", error);
       if (error.code === "P2002") {  // Prisma unique constraint error
         return reply.status(400).send({ error: "Email already in use" });
       }
-      reply.status(500).send({ error: "Internal Server Error" });
+      reply.status(500).send({ error: "Internal Server Error", details: error.message });
     }
   }
 );
 
 
-// User Login with JWT Authentication
-fastify.post("/login", async (req, reply) => {
-  const { email, password } = req.body;
-  const user = await prisma.user.findUnique({ where: { email } });
-
-  if (!user || !(await bcrypt.compare(password, user.password))) {
-    return reply.status(401).send({ error: "Invalid Password! Input Correct Password" });
-  }
-
-  const accessToken = fastify.jwt.sign({ id: user.id, role: user.role }, { expiresIn: "15m" });
-  const refreshToken = fastify.jwt.sign({ id: user.id }, { expiresIn: "7d" });
-
-  reply.setCookie("refreshToken", refreshToken, {
-    httpOnly: true,
-    secure: true,
-    path: "/refresh-token",
+// ✅ Function to find user in database
+async function findUserByEmail(email) {
+  return await prisma.user.findUnique({
+      where: { email },
   });
+}
 
-  fastify.io.emit("receive_notification", { type: "login", message: `${user.email} has logged in.` });
+// ✅ Login Route
+fastify.post("/login", async (req, reply) => {
+  try {
+      const { email, password } = req.body;
+      console.log("Incoming Login Request:", req.body);
 
-  reply.send({ accessToken });
+      // 🔹 Check if user exists
+      const user = await findUserByEmail(email);
+      if (!user) {
+          return reply.status(401).send({ error: "Invalid email or password" });
+      }
+
+      // 🔹 Verify password
+      const isValidPassword = await bcrypt.compare(password, user.password);
+      if (!isValidPassword) {
+          return reply.status(401).send({ error: "Invalid email or password" });
+      }
+
+      // ✅ Generate JWT token
+      const token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET, { expiresIn: "1h" });
+
+      return reply.send({ token });
+  } catch (error) {
+      console.error("Login error:", error);
+      return reply.status(500).send({ error: "Internal Server Error" });
+  }
 });
 
 // Refresh Token
@@ -250,6 +286,117 @@ fastify.post("/secure-endpoint", {
   },
 });
 
+// 🚀 Create a course
+fastify.post("/api/courses", { preHandler: [fastify.authenticate] }, async (req, reply) => {
+  try {
+      const { title, description, instructorId, duration, category } = req.body;
+      if (!title || !description || !instructorId || !duration || !category) {
+          return reply.status(400).send({ error: "Missing required fields" });
+      }
+
+      const newCourse = await prisma.course.create({
+          data: { title, description, instructorId, duration, category },
+      });
+
+      reply.status(201).send(newCourse);
+  } catch (error) {
+      console.error("Error creating course:", error);
+      reply.status(500).send({ error: "Internal Server Error" });
+  }
+});
+
+// ✏️ Update a course
+fastify.put("/api/courses/:id", async (req, reply) => {
+  try {
+      const { id } = req.params;
+      const { title, description, duration } = req.body;
+
+      const updatedCourse = await prisma.course.update({
+          where: { id },
+          data: { title, description, duration },
+      });
+
+      reply.send(updatedCourse);
+  } catch (error) {
+      console.error("Error updating course:", error);
+      reply.status(500).send({ error: "Internal Server Error" });
+  }
+});
+
+// 📜 Fetch all courses
+fastify.get("/api/courses", async (_, reply) => {
+  try {
+      const courses = await prisma.course.findMany();
+      reply.send(courses);
+  } catch (error) {
+      console.error("Error fetching courses:", error);
+      reply.status(500).send({ error: "Internal Server Error" });
+  }
+});
+
+// 🔍 Fetch a single course
+fastify.get("/api/courses/:id", async (req, reply) => {
+  try {
+      const { id } = req.params;
+
+      const course = await prisma.course.findUnique({ where: { id } });
+
+      if (!course) {
+          return reply.status(404).send({ error: "Course not found" });
+      }
+
+      reply.send(course);
+  } catch (error) {
+      console.error("Error fetching course:", error);
+      reply.status(500).send({ error: "Internal Server Error" });
+  }
+});
+
+// ❌ Delete a course
+fastify.delete("/api/courses/:id", async (req, reply) => {
+  try {
+      const { id } = req.params;
+
+      await prisma.course.delete({ where: { id } });
+
+      reply.send({ message: "Course deleted successfully" });
+  } catch (error) {
+      console.error("Error deleting course:", error);
+      reply.status(500).send({ error: "Internal Server Error" });
+  }
+});
+
+// 📈 Progress APIs
+fastify.post("/api/progress", { preHandler: authenticate }, async (req, reply) => {
+  const { studentId, courseId, progressPercentage } = req.body;
+  const progress = await prisma.progress.create({
+    data: { studentId, courseId, progressPercentage },
+  });
+  reply.code(201).send(progress);
+});
+
+fastify.get("/api/progress/:studentId", { preHandler: authenticate }, async (req, reply) => {
+  const { studentId } = req.params;
+  const progress = await prisma.progress.findMany({ where: { studentId } });
+  reply.send(progress);
+});
+
+// 🔄 WebSocket APIs
+fastify.register(async (fastify) => {
+  fastify.get("/ws", { websocket: true }, (connection) => {
+    connection.socket.on("message", (message) => {
+      const data = JSON.parse(message);
+      if (data.event === "message") {
+        fastify.websocketServer.clients.forEach((client) => {
+          if (client.readyState === 1) client.send(message);
+        });
+      } else if (data.event === "userOnline") {
+        console.log(`User Online: ${data.userId}`);
+      }
+    });
+  });
+});
+
 // Admin Dashboard Analytics
 fastify.get("/admin/stats", { preHandler: [fastify.authenticate] }, async (req, reply) => {
   if (req.user.role !== "admin") return reply.status(403).send({ error: "Forbidden" });
@@ -260,6 +407,7 @@ fastify.get("/admin/stats", { preHandler: [fastify.authenticate] }, async (req, 
 
   reply.send({ totalUsers, totalLogins, roleStats });
 });
+
 
 // Start Fastify server
 fastify.listen({ port: 5000 }, (err) => {

@@ -1,34 +1,62 @@
 import request from "supertest";
-import fastify from "../server.js";
+import Fastify from "fastify";
+import app from "../server.js";
 
-describe("API Tests", () => {
-  it("should register a user", async () => {
-    try {
-      const res = await request(fastify.server)
-        .post("/api/signup")
-        .set("Content-Type", "application/json") 
-        .send({ name: "Jane Doe", email: "jane@example.com", password: "test123", role: "student" });
+const fastify = Fastify();
+fastify.register(app);
 
-      expect(res.status).toBe(200);
-      expect(res.body).toHaveProperty("user");
-    } catch (error) {
-      console.error("Signup test failed:", error);
-      throw error; // Ensures Jest registers it as a failed test
-    }
-  });
+describe("Course API Tests", () => {
+    let courseId;
 
-  it("should login a user", async () => {
-    try {
-      const res = await request(fastify.server)
-        .post("/login")
-        .set("Content-Type", "application/json") 
-        .send({ email: "jane@example.com", password: "test123" });
+    // 🚀 Test Create Course
+    test("Create a course", async () => {
+        const response = await request(fastify.server)
+            .post("/api/courses")
+            .send({
+                title: "Test Course",
+                description: "This is a test course.",
+                instructorId: "instructor-123",
+                duration: "4 weeks",
+                category: "Programming"
+            });
+        
+        expect(response.status).toBe(201);
+        expect(response.body).toHaveProperty("id");
+        courseId = response.body.id;
+    });
 
-      expect(res.status).toBe(200);
-      expect(res.body).toHaveProperty("accessToken");
-    } catch (error) {
-      console.error("Login test failed:", error);
-      throw error;
-    }
-  });
+    // 📜 Test Fetch All Courses
+    test("Fetch all courses", async () => {
+        const response = await request(fastify.server).get("/api/courses");
+        expect(response.status).toBe(200);
+        expect(Array.isArray(response.body)).toBe(true);
+    });
+
+    // 🔍 Test Fetch Single Course
+    test("Fetch a single course", async () => {
+        const response = await request(fastify.server).get(`/api/courses/${courseId}`);
+        expect(response.status).toBe(200);
+        expect(response.body).toHaveProperty("id", courseId);
+    });
+
+    // ✏️ Test Update Course
+    test("Update a course", async () => {
+        const response = await request(fastify.server)
+            .put(`/api/courses/${courseId}`)
+            .send({
+                title: "Updated Course",
+                description: "Updated description.",
+                duration: "6 weeks"
+            });
+        
+        expect(response.status).toBe(200);
+        expect(response.body.title).toBe("Updated Course");
+    });
+
+    // ❌ Test Delete Course
+    test("Delete a course", async () => {
+        const response = await request(fastify.server).delete(`/api/courses/${courseId}`);
+        expect(response.status).toBe(200);
+        expect(response.body).toEqual({ message: "Course deleted successfully" });
+    });
 });
