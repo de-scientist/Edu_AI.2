@@ -186,47 +186,35 @@ fastify.post(
 );
 
 // User Registration
-fastify.post(
-  "/api/signup",
-  {
-    schema: {
-      body: {
-        type: "object",
-        required: ["name", "email", "password", "role"],
-        properties: {
-          name: { type: "string", minLength: 2 },
-          email: { type: "string", format: "email" },
-          password: { type: "string", minLength: 6 },
-          role: { type: "string", enum: ["STUDENT", "LECTURER", "ADMIN"] }
-        }
+fastify.post("/api/signup", { 
+  schema: { 
+    body: { 
+      type: "object", 
+      required: ["name", "email", "password", "role"], 
+      properties: { 
+        name: { type: "string", minLength: 2 }, 
+        email: { type: "string", format: "email" }, 
+        password: { type: "string", minLength: 6 }, 
+        role: { type: "string", enum: ["STUDENT", "LECTURER", "ADMIN"] } 
       }
     }
-  },
-  async (req, reply) => {
-    console.log("User Registration Request:", req.body); // Debug log
-   
-    const { name, email, password, role } = req.body;
-    if (!name || !email || !password || !role) {
-      return reply.status(400).send({ error: "All fields are required" });
+  } 
+}, async (req, reply) => {
+  const { name, email, password, role } = req.body;
+  const hashedPassword = await bcrypt.hash(password, 10);
+  try {
+    const user = await prisma.user.create({
+      data: { name, email, password: hashedPassword, role },
+    });
+    reply.send({ message: "User registered successfully", user });
+  } catch (error) {
+    console.error("Error during user registration:", error);
+    if (error.code === "P2002") {
+      return reply.status(400).send({ error: "Email already in use" });
     }
-
-    // Hash the password
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    try {
-      const user = await prisma.user.create({
-        data: { name, email, password: hashedPassword, role },
-      });
-      reply.send({ message: "User registered successfully", user });
-    } catch (error) {
-      console.error("Error during user registration:", error);
-      if (error.code === "P2002") {  // Prisma unique constraint error
-        return reply.status(400).send({ error: "Email already in use" });
-      }
-      reply.status(500).send({ error: "Internal Server Error", details: error.message });
-    }
+    reply.status(500).send({ error: "Internal Server Error", details: error.message });
   }
-);
+});
 
 
 // ✅ Function to find user in database
@@ -395,6 +383,38 @@ fastify.register(async (fastify) => {
       }
     });
   });
+});
+
+
+// Fastify route for generating quiz
+fastify.post("/quiz/generate", async (req, reply) => {
+  const { userId, topic } = req.body;
+
+  // Check student history from DB
+  const performance = await prisma.performance.findMany({
+    where: { userId, topic },
+    orderBy: { createdAt: "desc" },
+    take: 5,
+  });
+
+  const correctAnswers = performance.filter((p) => p.correct).length;
+  let difficulty = "medium";
+
+  if (correctAnswers < 2) difficulty = "easy";
+  else if (correctAnswers > 3) difficulty = "hard";
+
+  // AI-generated quiz question
+  const prompt = `Generate a ${difficulty} level quiz question on ${topic}.`;
+  
+  const aiResponse = await openai.completions.create({
+    model: "gpt-4",
+    prompt: prompt,
+    max_tokens: 100,
+  });
+
+  const question = aiResponse.choices[0].text.trim();
+
+  return reply.send({ question, difficulty });
 });
 
 // Admin Dashboard Analytics

@@ -4,9 +4,9 @@ import ReminderScheduler from "@/app/components/ReminderScheduler";
 import ProgressChart from "@/app/components/ProgressChart";
 import GoalTracker from "@/app/components/GoalTracker";
 import Quiz from "@/app/components/Quiz";
-import Recommendation from "@/app/components/Recommendation";
+import Recommendation from "@/app/components/Recommendations";
 import PerformanceDashboard from "@/app/components/PerformanceDashboard";
-import PerformanceDashboard from "../components/PerformanceDashboard";
+//import PerformanceDashboard from "../components/PerformanceDashboard";
 
 export default function LecturerDashboard() {
     return (

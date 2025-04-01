@@ -1,0 +1,73 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+  --font-sans: Arial, Helvetica, sans-serif;
+  --font-mono: monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Tailwind Enhancements */
+@layer base {
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-sans);
+    font-weight: bold;
+  }
+
+  p {
+    font-family: var(--font-sans);
+    line-height: 1.6;
+  }
+}
+
+@layer components {
+  .btn {
+    padding-left: 1rem;  /* px-4 */
+    padding-right: 1rem; /* px-4 */
+    padding-top: 0.5rem; /* py-2 */
+    padding-bottom: 0.5rem; /* py-2 */
+    border-radius: 0.5rem; /* rounded-lg */
+    font-weight: bold; 
+    transition-property: background-color, color; /* transition-colors */
+  }
+
+  .btn-primary {
+    background-color: #2563eb; /* bg-blue-600 */
+    color: white; /* text-white */
+  }
+
+  .btn-primary:hover {
+    background-color: #1d4ed8; /* hover:bg-blue-700 */
+  }
+
+  .btn-secondary {
+    background-color: #4b5563; /* bg-gray-600 */
+    color: white; /* text-white */
+  }
+
+  .btn-secondary:hover {
+    background-color: #374151; /* hover:bg-gray-700 */
+  }
+}
+
+@layer utilities {
+  .text-shadow {
+    text-shadow: 2px 2px 5px rgba(0, 0, 0, 0.3);
+  }
+}

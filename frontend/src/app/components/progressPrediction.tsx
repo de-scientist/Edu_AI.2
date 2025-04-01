@@ -1,9 +1,14 @@
-"use client";
-import React, { useState } from "react";
+import { useState } from "react";
 import axios from "axios";
 
-const ProgressPrediction = ({ week, pastProgress }) => {
-  const [prediction, setPrediction] = useState(null);
+// Define the props type
+type ProgressPredictionProps = {
+  week: number;  // Assuming week is a number, adjust as needed
+  pastProgress: number;  // Adjust the type if necessary
+};
+
+const ProgressPrediction = ({ week, pastProgress }: ProgressPredictionProps) => {
+  const [prediction, setPrediction] = useState<number | null>(null);
 
   const predict = async () => {
     try {
