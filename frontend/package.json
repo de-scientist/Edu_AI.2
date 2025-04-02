@@ -20,6 +20,7 @@
   "license": "ISC",
   "dependencies": {
     "@mui/material": "latest",
+    "@tailwindcss/postcss": "^4.1.0",
     "axios": "^1.8.4",
     "chart.js": "^4.4.8",
     "filepond": "^4.32.7",
@@ -39,7 +40,12 @@
     "@types/react-dom": "^19.0.4",
     "@types/react-transition-group": "^4.4.12",
     "@types/socket.io-client": "^1.4.36",
+    "autoprefixer": "^10.4.21",
     "eslint": "latest",
-    "eslint-config-next": "latest"
+    "eslint-config-next": "latest",
+    "postcss": "^8.5.3",
+    "prettier": "^3.5.3",
+    "prettier-plugin-tailwindcss": "^0.6.11",
+    "tailwindcss": "^4.1.1"
   }
 }

@@ -2,8 +2,8 @@ import jwt from "jsonwebtoken";
 
 export default async function myPreHandler(req, reply) {
     try {
-        // Ensure `routerPath` is available for route matching
-        const routePath = req.routerPath || req.url;
+        // Ensure `req.url` is available for route matching
+        const routePath = req.url;
 
         // ✅ Skip authentication for signup & login routes
         if (routePath === "/api/signup" || routePath === "/login") {
@@ -23,7 +23,7 @@ export default async function myPreHandler(req, reply) {
             return reply.status(401).send({ error: "Unauthorized: Invalid token" });
         }
 
-        // 🔹 Attach user details from the token
+        // 🔹 Attach user details from the token to request object
         req.user = decoded;
 
         return; // Proceed with the request

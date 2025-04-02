@@ -10,7 +10,7 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setError("");
+    setError(""); // Reset error on new attempt
 
     try {
       const res = await fetch("http://localhost:5000/login", {
@@ -24,18 +24,29 @@ export default function LoginPage() {
         throw new Error(data.error || "Invalid email or password");
       }
 
-      const { token } = await res.json();
+      const { token, role } = await res.json(); // Assuming the response includes role information
       localStorage.setItem("token", token); // Save token in local storage
 
-      router.push("/"); // Redirect to homepage after successful login
+      // Redirect based on role
+      if (role === "admin") {
+        router.push("/admin"); // Redirect to admin dashboard
+      } else if (role === "student") {
+        router.push("/student"); // Redirect to student dashboard
+      } else if (role === "lecturer") {
+        router.push("/lecturer"); // Redirect to lecturer dashboard
+      } else {
+        // Fallback if role is not recognized
+        setError("Invalid role, please contact support.");
+      }
     } catch (err) {
+      // Handle login errors
       if (err instanceof Error) {
         setError(err.message);
       } else {
-        setError("Something went wrong");
+        setError("Something went wrong, please try again.");
       }
 
-      // Redirect to signup after 3 seconds if login fails
+      // Optionally, show an error and redirect to signup after a delay
       setTimeout(() => {
         router.push("/signup");
       }, 3000);
@@ -46,14 +57,15 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-gray-100">
       <form className="bg-white p-6 rounded shadow-lg w-96" onSubmit={handleLogin}>
         <h2 className="text-2xl font-bold text-center mb-4">Login</h2>
-        
+
         {error && (
           <p className="text-red-500 text-sm text-center">
             {error} <br />
             Redirecting to{" "}
             <a href="/signup" className="text-blue-500 underline">
               Sign up
-            </a> in 3 seconds...
+            </a>{" "}
+            in 3 seconds...
           </p>
         )}
 

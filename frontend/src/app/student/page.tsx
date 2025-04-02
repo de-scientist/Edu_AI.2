@@ -19,7 +19,7 @@ export default function StudentDashboard() {
   const [pastProgress, setPastProgress] = useState(null);
 
   useEffect(() => {
-    if (session?.user?.id) {
+    if (status === "authenticated" && session?.user?.id) {
       axios.get(`/api/student-progress/${session.user.id}`)
         .then(res => {
           setWeek(res.data.week);
@@ -27,7 +27,8 @@ export default function StudentDashboard() {
         })
         .catch(err => console.error("Error fetching progress:", err));
     }
-  }, [session?.user?.id]);
+  }, [status, session?.user?.id]);
+  
 
   if (status === "loading") {
     return <p>Loading...</p>;

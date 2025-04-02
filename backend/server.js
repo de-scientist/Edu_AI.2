@@ -96,9 +96,6 @@ fastify.register(progressRoutes);
 fastify.register(analyticsRoutes);
 fastify.register(interactionRoutes)
 
-// 📌 Middleware for authentication
-fastify.addHook("preHandler", myPreHandler);
-
 // Register the JSON parser
 fastify.addContentTypeParser("application/json", { parseAs: "string" }, (req, body, done) => {
   try {
@@ -113,10 +110,13 @@ fastify.addContentTypeParser("application/json", { parseAs: "string" }, (req, bo
 // Track online users
 let onlineUsers = new Map();
 
-// Authenticate Middleware
+// Middleware for authentication
+fastify.addHook("preHandler", myPreHandler);
+
+// 📌 Middleware for JWT Authentication
 fastify.decorate("authenticate", async (req, reply) => {
   try {
-    await req.jwtVerify();
+    await req.jwtVerify();  // Verify the JWT
   } catch (err) {
     console.error("JWT Authentication Error:", err);  // 🔥 Debug this!
     reply.status(401).send({ error: "Unauthorized" });
@@ -227,44 +227,66 @@ async function findUserByEmail(email) {
 // ✅ Login Route
 fastify.post("/login", async (req, reply) => {
   try {
-      const { email, password } = req.body;
-      console.log("Incoming Login Request:", req.body);
+    const { email, password } = req.body;
+    console.log("Incoming Login Request:", { email });
 
-      // 🔹 Check if user exists
-      const user = await findUserByEmail(email);
-      if (!user) {
-          return reply.status(401).send({ error: "Invalid email or password" });
-      }
+    // 🔹 Check if user exists
+    const user = await findUserByEmail(email);
+    if (!user) {
+      console.warn("Login failed: User not found");
+      return reply.status(401).send({ error: "Invalid email or password" });
+    }
 
-      // 🔹 Verify password
-      const isValidPassword = await bcrypt.compare(password, user.password);
-      if (!isValidPassword) {
-          return reply.status(401).send({ error: "Invalid email or password" });
-      }
+    console.log("User found:", { id: user.id, role: user.role });
 
-      // ✅ Generate JWT token
-      const token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET, { expiresIn: "1h" });
+    // 🔹 Verify password
+    const isValidPassword = await bcrypt.compare(password, user.password);
+    if (!isValidPassword) {
+      console.warn("Login failed: Incorrect password");
+      return reply.status(401).send({ error: "Invalid email or password" });
+    }
 
-      return reply.send({ token });
+    // ✅ Validate Role
+    const validRoles = ["admin", "student", "lecturer"];
+    if (!validRoles.includes(user.role.toLowerCase())) {
+      console.error("Invalid role detected:", user.role);
+      return reply.status(403).send({ error: "Invalid role, please contact support." });
+    }
+
+    // ✅ Generate JWT token
+    const token = jwt.sign(
+      { userId: user.id, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: "1h" }
+    );
+
+    return reply.send({
+      token,
+      user: { id: user.id, email: user.email, role: user.role },  // Send back user info along with token
+    });
+
   } catch (error) {
-      console.error("Login error:", error);
-      return reply.status(500).send({ error: "Internal Server Error" });
+    console.error("Login error:", error);
+    return reply.status(500).send({ error: "Internal Server Error" });
   }
 });
 
-// Refresh Token
+
+
+// Refresh Token Route
 fastify.post("/refresh-token", async (req, reply) => {
   const refreshToken = req.cookies?.refreshToken;
   if (!refreshToken) return reply.status(401).send({ error: "No refresh token" });
 
   try {
     const decoded = fastify.jwt.verify(refreshToken);
-    const newAccessToken = fastify.jwt.sign({ id: decoded.id, role: decoded.role }, { expiresIn: "15m" });
+    const newAccessToken = fastify.jwt.sign({ id: decoded.id, role: decoded.role }, process.env.JWT_SECRET, { expiresIn: "15m" });
     reply.send({ accessToken: newAccessToken });
   } catch (err) {
     return reply.status(401).send({ error: "Invalid refresh token" });
   }
 });
+
 
 // Secure endpoint using authentication middleware
 fastify.post("/secure-endpoint", {

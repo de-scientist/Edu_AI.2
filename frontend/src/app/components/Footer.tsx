@@ -1,18 +1,19 @@
+"use client"; // ✅ Add this at the top
+
 import { useState, useEffect } from "react";
 
 export default function Footer() {
   const [year, setYear] = useState<number | null>(null);
 
   useEffect(() => {
-    setYear(new Date().getFullYear()); // ✅ Ensures consistent rendering
+    setYear(new Date().getFullYear()); // ✅ Set the current year on mount
   }, []);
 
   return (
-    <>
-      <footer className="fixed bottom-0 left-0 w-full bg-blue-600 text-white py-4 text-center shadow-md">
-        © {year ?? "..."} Edu_AI. All rights reserved.
-      </footer>
-      <div className="pb-16"></div>
-    </>
+    <footer className="text-center py-4 bg-gray-100 dark:bg-gray-800">
+      <p className="text-sm text-gray-600 dark:text-gray-400">
+        © {year} Edu_AI. All rights reserved.
+      </p>
+    </footer>
   );
 }

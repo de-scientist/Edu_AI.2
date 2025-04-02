@@ -1,33 +1,42 @@
 "use client";  // Ensure this file is treated as a client component in Next.js
 
 import { useEffect, useState } from "react";
-import { redirect } from "next/navigation";  // Import redirect for Next.js
+import { redirect, useRouter } from "next/navigation";  // Import redirect for Next.js
+import { getSession } from "next-auth/react";  // Import getSession from next-auth
 import Navbar from "../components/Navbar";
 import Sidebar from "../components/Sidebar";
+import styles from "../styles/admin.module.css";
 import AdminDashboard from "@/app/components/AdminDashboard";
 import LeaderBoard from "@/app/components/Leaderboard";
 import PerformanceDashboard from "@/app/components/PerformanceDashboard";
 import Recommendation from "@/app/components/Recommendations";
-import { getSessionUser } from "your-session-utils";  // Replace with your actual session logic
+
+// Define a type for the user state
+interface User {
+  id: string;
+  email: string;
+  role: string;
+}
+
 
 export default function AdminPage() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-
+  const router = useRouter();
+ // return <div className={styles.adminPage}>Admin Dashboard</div>;
+  
   // Use useEffect to load the user asynchronously
   useEffect(() => {
     const fetchUser = async () => {
       try {
-        const userData = await getSessionUser(); // Assume getSessionUser is a function that fetches the user session
-        setUser(userData);
+        const session = await getSession();
+        setUser(session?.user || null);
         setLoading(false);
-
-        if (!userData) {
-          redirect("/login");  // Redirect to login if no user
-        }
-
-        if (userData.role !== "admin") {
-          redirect("/unauthorized");  // Redirect to unauthorized if user is not admin
+  
+        if (!session?.user) {
+          router.push("/login");
+        } else if (session.user.role !== "admin") {
+          router.push("/unauthorized");
         }
       } catch (error) {
         console.error("Error fetching user session:", error);

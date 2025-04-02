@@ -32,6 +32,6 @@
     "**/*.tsx",
     ".next/types/**/*.ts",
     "src"  // ✅ Ensure the src directory is included
-, "tailwind.config.ts"  ],
+, "tailwind.config.ts", "postcss.config.mjs"  ],
   "exclude": ["node_modules"]
 }

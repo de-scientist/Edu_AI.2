@@ -12,14 +12,20 @@ export default fastifyPlugin(async (fastify, opts) => {
   fastify.post("/auth/login", async (req, reply) => {
     const { email, password } = req.body;
 
+    // Fetch user by email
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) return reply.status(401).send({ error: "Invalid credentials" });
 
+    // Check if password matches
     const passwordMatch = await bcrypt.compare(password, user.password);
     if (!passwordMatch) return reply.status(401).send({ error: "Invalid credentials" });
 
-    // Generate JWT
-    const token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET, { expiresIn: "1h" });
+    // Generate JWT token, now including the role
+    const token = jwt.sign(
+      { userId: user.id, email: user.email, role: user.role },  // Include user role in the token
+      process.env.JWT_SECRET,
+      { expiresIn: "1h" }
+    );
 
     // Capture user login details
     const ipAddress = req.ip || req.headers["x-forwarded-for"] || "Unknown";
@@ -33,6 +39,7 @@ export default fastifyPlugin(async (fastify, opts) => {
       },
     });
 
+    // Send the token back to the client
     reply.send({ token });
   });
 
@@ -55,9 +62,9 @@ export default fastifyPlugin(async (fastify, opts) => {
 
     await sendResetEmail(email, resetToken);
     reply.send({ message: "Password reset email sent." });
- });
+  });
 
- fastify.post("/auth/reset-password", async (req, reply) => {
+  fastify.post("/auth/reset-password", async (req, reply) => {
     const { token, newPassword } = req.body;
 
     const user = await prisma.user.findFirst({
