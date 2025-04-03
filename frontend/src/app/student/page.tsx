@@ -15,39 +15,48 @@ import NotesSummarizer from "@/app/components/NotesSummarizer";
 
 export default function StudentDashboard() {
   const { data: session, status } = useSession();
-  const [week, setWeek] = useState(null);
-  const [pastProgress, setPastProgress] = useState(null);
+  const [week, setWeek] = useState<number | null>(null); // `week` can still be null initially
+  const [pastProgress, setPastProgress] = useState<any>(null);
+  const [id, setId] = useState<string | null>(null); // Store ID as string
 
   useEffect(() => {
-    if (status === "authenticated" && session?.user?.id) {
-      axios.get(`/api/student-progress/${session.user.id}`)
+    if (status === "authenticated" && session?.user?.email) {
+      axios.get(`/api/student-profile?email=${session.user.email}`)
         .then(res => {
-          setWeek(res.data.week);
-          setPastProgress(res.data.pastProgress);
+          if (res.data?.id) {
+            const studentId = String(res.data.id); // Convert ID to string
+            setId(studentId); // Set the ID
+            return axios.get(`/api/student-progress/${studentId}`);
+          }
         })
-        .catch(err => console.error("Error fetching progress:", err));
+        .then(res => {
+          if (res) {
+            setWeek(res.data.week); // Set week
+            setPastProgress(res.data.pastProgress); // Set progress
+          }
+        })
+        .catch(err => console.error("Error fetching data:", err));
     }
-  }, [status, session?.user?.id]);
-  
+  }, [status, session?.user?.email]);
 
   if (status === "loading") {
     return <p>Loading...</p>;
   }
 
-  if (!session?.user?.id) {
-    return <p className="text-red-500">Error: No student ID found. Please log in.</p>;
+  if (!session?.user?.email) {
+    return <p className="text-red-500">Error: No email found. Please log in.</p>;
   }
 
   return (
     <div>
       <h1 className="text-2xl font-bold">Student Dashboard</h1>
       <StudentInput />
-      <StudyPlanner />
-      <LearningPath studentId={session.user.id} />
-      {/* ✅ Pass `week` and `pastProgress` safely */}
-      <ProgressPrediction week={week} pastProgress={pastProgress} />
+      {id && <StudyPlanner id={id} />}  {/* Pass id to StudyPlanner */}
+      {id && <LearningPath id={id} />}  {/* Pass id to LearningPath */}
+      <ProgressPrediction week={week ?? 0} pastProgress={pastProgress} /> 
+      {/* Pass 0 if week is null */}
       <Quiz />
-      <StudyRecommendations />
+      {id && <StudyRecommendations id={id} />}  {/* Pass id to StudyRecommendations */}
       <NotesSummarizer />
       <p>View courses, profile, and academic progress.</p>
     </div>

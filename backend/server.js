@@ -2,22 +2,22 @@
 import Fastify from "fastify";
 import fetch from "node-fetch";
 globalThis.fetch = fetch;
-import websocket from "@fastify/websocket";
-import cors from "@fastify/cors";
+import websocket from "@fastify/websocket";  // WebSocket package
+import fastifyCors from "@fastify/cors";
 import axios from "axios";
-import fastifySocketIO from "fastify-socket.io";
+// import fastifySocketIO from "fastify-socket.io"; // Comment out this line
 import speakeasy from "speakeasy";
 import bcrypt from "bcryptjs";
 import fastifyJwt from "@fastify/jwt";
 import fastifyCookie from "@fastify/cookie";
 import prisma from "./prisma/db.js";
-//import fastifyFormbody from "@fastify/formbody";  
-//import fastifyJson from "@fastify/json"; 
+import fastifyFormbody from "@fastify/formbody";  
 import OpenAI from "openai";
 import dotenv from "dotenv";
 import jwt from "jsonwebtoken";
 
 dotenv.config();
+console.log("Loaded JWT Secret:", process.env.JWT_SECRET);
 
 
 // ✅ Test Prisma Database Connection before starting the server
@@ -27,10 +27,10 @@ async function testDatabaseConnection() {
     console.log("✅ Connected to database.");
   } catch (error) {
     console.error("❌ Database connection failed:", error);
-    process.exit(1); // Exit if DB connection fails
+    process.exit(1);
   }
 }
-testDatabaseConnection();  // Call the function before running Fastify
+testDatabaseConnection();
 
 // Import routes
 import myPreHandler from "./middleware/auth.js"; // Authentication middleware
@@ -49,26 +49,29 @@ import { transporter, sendEmail } from "./helpers/email.js";
 // Initialize Fastify
 const fastify = Fastify({ logger: true });
 
-// CORS Config
-fastify.register(cors, {
+// 🔹 CORS Configuration (Applies to HTTP Requests)
+fastify.register(fastifyCors, {
   origin: ["http://localhost:3000"],
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
   credentials: true,
 });
 
-// Register plugins
-fastify.register(fastifyJwt, { secret: process.env.JWT_SECRET });
-fastify.register(fastifyCookie);
-fastify.register(import("@fastify/formbody"));
-//fastify.register(fastifyJson);  
-fastify.register(fastifySocketIO, {
-  cors: {
-    origin: ["http://localhost:3000"],
-    methods: ["GET", "POST"],
-    credentials: true,
-  },
+// 🔹 Register Plugins
+fastify.register(fastifyJwt, {
+  secret: process.env.JWT_SECRET,  // Use JWT secret from .env
 });
+fastify.register(fastifyCookie);
+fastify.register(fastifyFormbody);
+// Comment out the fastify-socket.io plugin registration
+// fastify.register(fastifySocketIO, {
+//   cors: {
+//     origin: ["http://localhost:3000"],
+//     methods: ["GET", "POST"],
+//     credentials: true,
+//   },
+// });
+
 
 // In-memory cache
 const cache = new Map();
@@ -96,7 +99,7 @@ fastify.register(progressRoutes);
 fastify.register(analyticsRoutes);
 fastify.register(interactionRoutes)
 
-// Register the JSON parser
+// 🔹 Register JSON Parser
 fastify.addContentTypeParser("application/json", { parseAs: "string" }, (req, body, done) => {
   try {
     const parsed = JSON.parse(body);
@@ -106,66 +109,62 @@ fastify.addContentTypeParser("application/json", { parseAs: "string" }, (req, bo
   }
 });
 
-
 // Track online users
 let onlineUsers = new Map();
 
 // Middleware for authentication
 fastify.addHook("preHandler", myPreHandler);
 
-// 📌 Middleware for JWT Authentication
+// 🔹 Middleware for JWT Authentication (For HTTP Routes)
 fastify.decorate("authenticate", async (req, reply) => {
   try {
-    await req.jwtVerify();  // Verify the JWT
+    await req.jwtVerify();
   } catch (err) {
-    console.error("JWT Authentication Error:", err);  // 🔥 Debug this!
+    console.error("JWT Authentication Error:", err);
     reply.status(401).send({ error: "Unauthorized" });
   }
 });
 
+// WebSocket Route (Using @fastify/websocket instead of fastify-socket.io)
+fastify.register(websocket); // Register WebSocket plugin
 
-// WebSockets
-fastify.ready().then(() => {
-  console.log("Fastify is ready. WebSockets can now be used.");
+fastify.get("/ws", { websocket: true }, (connection, req) => {
+  try {
+    const token = req.headers["sec-websocket-protocol"]; // Retrieve token from headers
 
-  fastify.io.use(async (socket, next) => {
-    const token = socket.handshake.auth?.token;
     if (!token) {
-      console.log("WebSocket rejected: No token.");
-      return next(new Error("Unauthorized"));
+      connection.socket.close(1008, "Unauthorized"); // Close connection if no token
+      return;
     }
 
-    try {
-      const user = await fastify.jwt.verify(token);
-      socket.user = user;
-      next();
-    } catch (err) {
-      console.log("WebSocket auth failed:", err.message);
-      return next(new Error("Invalid token"));
-    }
-  });
-
-  fastify.io.on("connection", (socket) => {
-    console.log("User connected:", socket.user?.id || socket.id);
-
-    socket.on("userOnline", () => {
-      if (socket.user?.id) {
-        onlineUsers.set(socket.user.id, socket.id);
-        fastify.io.emit("updateUsers", Array.from(onlineUsers.keys()));
+    // Verify token
+    jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
+      if (err) {
+        connection.socket.close(1008, "Invalid token");
+        return;
       }
-    });
 
-    socket.on("disconnect", () => {
-      if (socket.user?.id) {
-        onlineUsers.delete(socket.user.id);
-      }
-      fastify.io.emit("updateUsers", Array.from(onlineUsers.keys()));
-      console.log("User disconnected:", socket.user?.id || socket.id);
+      console.log("✅ WebSocket connected:", decoded);
+      
+      connection.socket.on("message", (message) => {
+        console.log("📩 Received:", message.toString());
+      });
+
+      connection.socket.send("🔗 Connection Established!");
     });
-  });
-}).catch((err) => {
-  console.error("Error initializing Fastify:", err);
+  } catch (err) {
+    console.error("❌ WebSocket Error:", err);
+    connection.socket.close(1011, "Internal Server Error");
+  }
 });
+
+// Graceful Shutdown Handling (Close Prisma)
+process.on("SIGINT", async () => {
+  console.log("🚦 Shutting down gracefully...");
+  await prisma.$disconnect();
+  process.exit(0);
+});
+
 
 // Enable Two-Factor Authentication (2FA)
 fastify.post(
@@ -184,6 +183,7 @@ fastify.post(
     });
   }
 );
+
 
 // User Registration
 fastify.post("/api/signup", { 
@@ -217,6 +217,7 @@ fastify.post("/api/signup", {
 });
 
 
+
 // ✅ Function to find user in database
 async function findUserByEmail(email) {
   return await prisma.user.findUnique({
@@ -224,7 +225,6 @@ async function findUserByEmail(email) {
   });
 }
 
-// ✅ Login Route
 fastify.post("/login", async (req, reply) => {
   try {
     const { email, password } = req.body;
@@ -246,23 +246,24 @@ fastify.post("/login", async (req, reply) => {
       return reply.status(401).send({ error: "Invalid email or password" });
     }
 
-    // ✅ Validate Role
+    // ✅ Validate Role (Ensure case insensitivity)
     const validRoles = ["admin", "student", "lecturer"];
-    if (!validRoles.includes(user.role.toLowerCase())) {
+    const userRole = user.role.toLowerCase(); // Normalize role
+    if (!validRoles.includes(userRole)) {
       console.error("Invalid role detected:", user.role);
       return reply.status(403).send({ error: "Invalid role, please contact support." });
     }
 
-    // ✅ Generate JWT token
+    // ✅ Generate JWT token securely
     const token = jwt.sign(
-      { userId: user.id, role: user.role },
+      { userId: user.id, role: userRole },
       process.env.JWT_SECRET,
-      { expiresIn: "1h" }
+      { expiresIn: "2h" }
     );
 
     return reply.send({
       token,
-      user: { id: user.id, email: user.email, role: user.role },  // Send back user info along with token
+      user: { id: user.id, email: user.email, role: userRole }, // Ensure lowercase role is sent
     });
 
   } catch (error) {
@@ -272,6 +273,13 @@ fastify.post("/login", async (req, reply) => {
 });
 
 
+fastify.get("/eduai/stats", { preHandler: authenticate }, async (req, reply) => {
+  return reply.send({ message: "Stats data here" });
+});
+
+fastify.get("/eduai/users", { preHandler: authenticate }, async (req, reply) => {
+  return reply.send({ users: [{ id: 1, name: "John Doe" }] });
+});
 
 // Refresh Token Route
 fastify.post("/refresh-token", async (req, reply) => {
@@ -296,22 +304,17 @@ fastify.post("/secure-endpoint", {
   },
 });
 
-// 🚀 Create a course
+// ✅ Create Course
 fastify.post("/api/courses", { preHandler: [fastify.authenticate] }, async (req, reply) => {
   try {
-      const { title, description, instructorId, duration, category } = req.body;
-      if (!title || !description || !instructorId || !duration || !category) {
-          return reply.status(400).send({ error: "Missing required fields" });
-      }
-
-      const newCourse = await prisma.course.create({
-          data: { title, description, instructorId, duration, category },
-      });
-
-      reply.status(201).send(newCourse);
+    const { title, description, instructorId, duration, category } = req.body;
+    const newCourse = await prisma.course.create({
+      data: { title, description, instructorId, duration, category },
+    });
+    reply.status(201).send(newCourse);
   } catch (error) {
-      console.error("Error creating course:", error);
-      reply.status(500).send({ error: "Internal Server Error" });
+    console.error("Error creating course:", error);
+    reply.status(500).send({ error: "Internal Server Error" });
   }
 });
 
@@ -333,46 +336,40 @@ fastify.put("/api/courses/:id", async (req, reply) => {
   }
 });
 
-// 📜 Fetch all courses
+// ✅ Fetch All Courses
 fastify.get("/api/courses", async (_, reply) => {
   try {
-      const courses = await prisma.course.findMany();
-      reply.send(courses);
+    const courses = await prisma.course.findMany();
+    reply.send(courses);
   } catch (error) {
-      console.error("Error fetching courses:", error);
-      reply.status(500).send({ error: "Internal Server Error" });
+    console.error("Error fetching courses:", error);
+    reply.status(500).send({ error: "Internal Server Error" });
   }
 });
 
-// 🔍 Fetch a single course
+// ✅ Fetch Course by ID
 fastify.get("/api/courses/:id", async (req, reply) => {
   try {
-      const { id } = req.params;
+    const { id } = req.params;
+    const course = await prisma.course.findUnique({ where: { id: Number(id) } });
 
-      const course = await prisma.course.findUnique({ where: { id } });
-
-      if (!course) {
-          return reply.status(404).send({ error: "Course not found" });
-      }
-
-      reply.send(course);
+    if (!course) return reply.status(404).send({ error: "Course not found" });
+    reply.send(course);
   } catch (error) {
-      console.error("Error fetching course:", error);
-      reply.status(500).send({ error: "Internal Server Error" });
+    console.error("Error fetching course:", error);
+    reply.status(500).send({ error: "Internal Server Error" });
   }
 });
 
-// ❌ Delete a course
-fastify.delete("/api/courses/:id", async (req, reply) => {
+// ✅ Delete Course
+fastify.delete("/api/courses/:id", { preHandler: [fastify.authenticate] }, async (req, reply) => {
   try {
-      const { id } = req.params;
-
-      await prisma.course.delete({ where: { id } });
-
-      reply.send({ message: "Course deleted successfully" });
+    const { id } = req.params;
+    await prisma.course.delete({ where: { id: Number(id) } });
+    reply.send({ message: "Course deleted successfully" });
   } catch (error) {
-      console.error("Error deleting course:", error);
-      reply.status(500).send({ error: "Internal Server Error" });
+    console.error("Error deleting course:", error);
+    reply.status(500).send({ error: "Internal Server Error" });
   }
 });
 
@@ -391,65 +388,15 @@ fastify.get("/api/progress/:studentId", { preHandler: authenticate }, async (req
   reply.send(progress);
 });
 
-// 🔄 WebSocket APIs
-fastify.register(async (fastify) => {
-  fastify.get("/ws", { websocket: true }, (connection) => {
-    connection.socket.on("message", (message) => {
-      const data = JSON.parse(message);
-      if (data.event === "message") {
-        fastify.websocketServer.clients.forEach((client) => {
-          if (client.readyState === 1) client.send(message);
-        });
-      } else if (data.event === "userOnline") {
-        console.log(`User Online: ${data.userId}`);
-      }
-    });
-  });
-});
-
-
-// Fastify route for generating quiz
-fastify.post("/quiz/generate", async (req, reply) => {
-  const { userId, topic } = req.body;
-
-  // Check student history from DB
-  const performance = await prisma.performance.findMany({
-    where: { userId, topic },
-    orderBy: { createdAt: "desc" },
-    take: 5,
-  });
-
-  const correctAnswers = performance.filter((p) => p.correct).length;
-  let difficulty = "medium";
-
-  if (correctAnswers < 2) difficulty = "easy";
-  else if (correctAnswers > 3) difficulty = "hard";
-
-  // AI-generated quiz question
-  const prompt = `Generate a ${difficulty} level quiz question on ${topic}.`;
-  
-  const aiResponse = await openai.completions.create({
-    model: "gpt-4",
-    prompt: prompt,
-    max_tokens: 100,
-  });
-
-  const question = aiResponse.choices[0].text.trim();
-
-  return reply.send({ question, difficulty });
-});
-
-// Admin Dashboard Analytics
+// ✅ Admin Stats
 fastify.get("/admin/stats", { preHandler: [fastify.authenticate] }, async (req, reply) => {
   if (req.user.role !== "admin") return reply.status(403).send({ error: "Forbidden" });
 
   const totalUsers = await prisma.user.count();
-  const totalLogins = await prisma.loginHistory.count();
   const roleStats = await prisma.user.groupBy({ by: ["role"], _count: true });
 
-  reply.send({ totalUsers, totalLogins, roleStats });
+  reply.send({ totalUsers, roleStats });
 });
-
 
 // Start Fastify server
 fastify.listen({ port: 5000 }, (err) => {

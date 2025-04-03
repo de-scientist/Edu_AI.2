@@ -3,11 +3,11 @@
 import React, { useState } from "react";
 import axios from "axios";
 
-const StudyPlanner = ({ studentId }) => {
-  const [studyPlan, setStudyPlan] = useState([]);
+const StudyPlanner = ({ id }: { id: string }) => {  // Accept `id` instead of `studentId`
+  const [studyPlan, setStudyPlan] = useState<any[]>([]);  // Typing as any[] assuming the data structure
 
   const generateStudyPlan = () => {
-    axios.post("http://localhost:5000/generate-study-plan", { studentId, studyHours: 2 })
+    axios.post("http://localhost:5000/generate-study-plan", { studentId: id, studyHours: 2 })  // Use `id` here
       .then((res) => setStudyPlan(res.data.studyPlan));
   };
 

@@ -10,6 +10,10 @@ const authOptions: NextAuthOptions = {
         password: { label: "Password", type: "password" }
       },
       async authorize(credentials) {
+        if (!credentials?.email || !credentials?.password) {
+          throw new Error("Email and password are required.");
+        }
+
         const users = [
           { id: "1", email: "admin@example.com", password: "admin123", role: "admin" },
           { id: "2", email: "student@example.com", password: "student123", role: "student" },
@@ -17,31 +21,37 @@ const authOptions: NextAuthOptions = {
         ];
 
         const user = users.find(
-          u => u.email === credentials?.email && u.password === credentials?.password
+          u => u.email === credentials.email && u.password === credentials.password
         );
 
-        if (user) {
-          return { id: user.id, email: user.email, role: user.role } as any; // Ensure user includes role
+        if (!user) {
+          throw new Error("Invalid email or password.");
         }
-        return null;
+
+        return { id: user.id, email: user.email, role: user.role }; // Ensuring `id` and `role` are included
       }
     })
   ],
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        token.role = (user as { role: string }).role; // Explicitly define type
+        token.id = user.id; // ✅ Ensure `id` persists
+        token.role = user.role;
       }
       return token;
     },
     async session({ session, token }) {
       if (session.user) {
-        session.user.role = token.role as string; // Ensure token.role is a string
+        session.user.id = token.id as string; // ✅ Ensure `id` is available
+        session.user.role = token.role as string;
       }
       return session;
     }
   },
-  secret: process.env.NEXTAUTH_SECRET
+  secret: process.env.NEXTAUTH_SECRET,
+  session: {
+    strategy: "jwt" // ✅ Using JWT to store sessions
+  }
 };
 
 const handler = NextAuth(authOptions);

@@ -10,46 +10,44 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setError(""); // Reset error on new attempt
+    setError(""); // Reset error state on each attempt
 
     try {
+      // Send login request to backend
       const res = await fetch("http://localhost:5000/login", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({ email, password }),
       });
 
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Invalid email or password");
-      }
+      const data = await res.json();
 
-      const { token, role } = await res.json(); // Assuming the response includes role information
-      localStorage.setItem("token", token); // Save token in local storage
+      if (!res.ok) throw new Error(data.error || "Invalid email or password");
 
-      // Redirect based on role
-      if (role === "admin") {
-        router.push("/admin"); // Redirect to admin dashboard
-      } else if (role === "student") {
-        router.push("/student"); // Redirect to student dashboard
-      } else if (role === "lecturer") {
-        router.push("/lecturer"); // Redirect to lecturer dashboard
+      // Store JWT token in localStorage
+      localStorage.setItem("accessToken", data.token);
+
+      // Define roleRedirects mapping for easy redirection
+      const roleRedirects: Record<string, string> = {
+        admin: "/admin",
+        student: "/student",
+        lecturer: "/lecturer",
+      };
+
+      // Redirect user based on their role
+      const role = data.user.role.toLowerCase();
+      if (role in roleRedirects) {
+        console.log("🚀 Redirecting to:", roleRedirects[role]);
+        setTimeout(() => router.push(roleRedirects[role]), 300);
       } else {
-        // Fallback if role is not recognized
-        setError("Invalid role, please contact support.");
+        setError("Invalid role detected, please contact support.");
       }
     } catch (err) {
-      // Handle login errors
-      if (err instanceof Error) {
-        setError(err.message);
-      } else {
-        setError("Something went wrong, please try again.");
-      }
-
-      // Optionally, show an error and redirect to signup after a delay
-      setTimeout(() => {
-        router.push("/signup");
-      }, 3000);
+      const errorMessage =
+        err instanceof Error ? err.message : "Something went wrong, please try again.";
+      setError(errorMessage);
     }
   };
 
@@ -61,11 +59,16 @@ export default function LoginPage() {
         {error && (
           <p className="text-red-500 text-sm text-center">
             {error} <br />
-            Redirecting to{" "}
-            <a href="/signup" className="text-blue-500 underline">
-              Sign up
-            </a>{" "}
-            in 3 seconds...
+            {error.toLowerCase().includes("invalid email or password") && (
+              <>
+                <span className="text-sm">Try one of the following:</span>
+                <ul className="list-disc pl-5 text-sm">
+                  <li>Student: student@example.com / student123</li>
+                  <li>Lecturer: lecturer@example.com / lecturer123</li>
+                  <li>Admin: admin@example.com / admin123</li>
+                </ul>
+              </>
+            )}
           </p>
         )}
 

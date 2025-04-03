@@ -2,12 +2,17 @@
 import React, { useState } from "react";
 import axios from "axios";
 
-const ReminderScheduler = ({ studentId }) => {
+// Define the type for the props
+interface ReminderSchedulerProps {
+  id: string;  // Explicitly define the type of `id` as string
+}
+
+const ReminderScheduler: React.FC<ReminderSchedulerProps> = ({ id }) => {  // ✅ Use the defined type
   const [message, setMessage] = useState("");
   const [sendTime, setSendTime] = useState("");
 
   const scheduleReminder = () => {
-    axios.post("http://localhost:5000/set-reminder", { studentId, message, sendTime })
+    axios.post("http://localhost:5000/set-reminder", { id, message, sendTime })
       .then(() => alert("Reminder Scheduled!"));
   };
 

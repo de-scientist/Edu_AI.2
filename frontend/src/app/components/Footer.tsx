@@ -1,4 +1,4 @@
-"use client"; // ✅ Add this at the top
+"use client"; // ✅ client-side component
 
 import { useState, useEffect } from "react";
 

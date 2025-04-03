@@ -5,22 +5,22 @@ import axios from "axios";
 
 // Define the type for the LearningPathProps
 type LearningPathProps = {
-  studentId: string;
+  id: string;  // ✅ Changed from `studentId` to `id`
 };
 
-// Define the type for the topics array (if each topic is an object, adjust the type accordingly)
+// Define the type for the topics array
 type Topic = {
-  name: string;  // Adjust this depending on the actual structure of each topic
+  name: string;  // Adjust this if the actual structure is different
 };
 
-const LearningPath: React.FC<LearningPathProps> = ({ studentId }) => {
-  const [topics, setTopics] = useState<Topic[]>([]); // Define topics as an array of Topic objects
+const LearningPath: React.FC<LearningPathProps> = ({ id }) => {  // ✅ Changed from `studentId` to `id`
+  const [topics, setTopics] = useState<Topic[]>([]);
 
   useEffect(() => {
-    axios.get(`http://localhost:5000/learning-path/${studentId}`)
-      .then((res) => setTopics(res.data)) // Assuming the response is an array of topics
-      .catch((error) => console.error("Error fetching learning path:", error)); // Add error handling
-  }, [studentId]);
+    axios.get(`http://localhost:5000/learning-path/${id}`)  // ✅ Changed from `studentId` to `id`
+      .then((res) => setTopics(res.data))
+      .catch((error) => console.error("Error fetching learning path:", error));
+  }, [id]);  // ✅ Updated dependency
 
   return (
     <div>
@@ -28,7 +28,7 @@ const LearningPath: React.FC<LearningPathProps> = ({ studentId }) => {
       <ul>
         {topics.map((topic, index) => (
           <li key={index}>📌 {topic.name}</li> 
-        ))} {/* <-- Added the closing parenthesis for the map */}
+        ))}
       </ul>
     </div>
   );

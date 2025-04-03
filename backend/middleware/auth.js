@@ -2,11 +2,10 @@ import jwt from "jsonwebtoken";
 
 export default async function myPreHandler(req, reply) {
     try {
-        // Ensure `req.url` is available for route matching
-        const routePath = req.url;
+        const routePath = req.url;  // Ensure correct route handling
 
         // ✅ Skip authentication for signup & login routes
-        if (routePath === "/api/signup" || routePath === "/login") {
+        if (routePath.includes("/signup") || routePath.includes("/login")) {
             return;
         }
 

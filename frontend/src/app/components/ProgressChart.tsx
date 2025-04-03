@@ -1,19 +1,39 @@
-"use client";
+// ProgressChart.tsx
 import React, { useEffect, useState } from "react";
 import { Line } from "react-chartjs-2";
-import socket from "../socket";
+import { socket } from "../socket"; // ✅ Correct named import
 import axios from "axios";
 import { Chart, LineController, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend } from "chart.js";
 
 // Register Chart.js components
 Chart.register(LineController, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend);
 
-const ProgressChart = () => {
-  const [progressData, setProgressData] = useState([]);
-  const [students, setStudents] = useState([]);
-  const [courses, setCourses] = useState([]);
-  const [selectedStudent, setSelectedStudent] = useState("");
-  const [selectedCourse, setSelectedCourse] = useState("");
+interface ProgressData {
+  id: string;
+  progress: number;
+  updatedAt: string;
+}
+
+interface Student {
+  id: string;
+  name: string;
+}
+
+interface Course {
+  id: string;
+  name: string;
+}
+
+interface ProgressChartProps {
+  id: string;  // Accepting id prop
+}
+
+const ProgressChart: React.FC<ProgressChartProps> = ({ id }) => {
+  const [progressData, setProgressData] = useState<ProgressData[]>([]);
+  const [students, setStudents] = useState<Student[]>([]);
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [selectedStudent, setSelectedStudent] = useState<string>("");
+  const [selectedCourse, setSelectedCourse] = useState<string>("");
 
   useEffect(() => {
     async function fetchData() {
@@ -34,7 +54,7 @@ const ProgressChart = () => {
 
     fetchData();
 
-    socket.on("progress_broadcast", (data) => {
+    socket.on("progress_broadcast", (data: ProgressData) => {
       setProgressData((prevData) => [...prevData, data]);
     });
 
@@ -46,6 +66,7 @@ const ProgressChart = () => {
     try {
       const response = await axios.get("http://localhost:5000/progress", {
         params: {
+          lecturerId: id,  // Use the lecturer's id
           studentId: selectedStudent || undefined,
           courseId: selectedCourse || undefined,
         },
@@ -73,7 +94,7 @@ const ProgressChart = () => {
   const options = {
     responsive: true,
     plugins: {
-      legend: { position: "top" },
+      legend: { position: "top" as const },
       title: { display: true, text: "Real-Time Student Progress" },
     },
   };
