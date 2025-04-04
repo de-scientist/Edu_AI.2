@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { getToken } from "next-auth/jwt";
+import { NextRequest } from "next/server";  // Import the correct type for req
 
-export async function middleware(req) {
+export async function middleware(req: NextRequest) {  // Explicitly type the 'req' parameter
   const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
   const { pathname } = req.nextUrl;
 

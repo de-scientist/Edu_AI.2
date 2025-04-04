@@ -1,37 +1,45 @@
 {
   "compilerOptions": {
-    "target": "ES2017",
-    "lib": ["dom", "dom.iterable", "esnext"],
-    "allowJs": true,
-    "skipLibCheck": true,
-    "strict": true,
-    "noEmit": true,
-    "esModuleInterop": true,
-    "module": "esnext",
-    "moduleResolution": "node",
-    "resolveJsonModule": true,
-    "isolatedModules": true,
-    "jsx": "preserve",
-    "incremental": true,
-    "baseUrl": "./src",
-    "forceConsistentCasingInFileNames": true,  
+    "target": "ES2017", // Set target to ES2017
+    "lib": ["dom", "dom.iterable", "esnext"], // Include necessary libraries
+    "allowJs": true, // Allow JavaScript files to be included
+    "skipLibCheck": true, // Skip type checking of declaration files (improves performance)
+    "strict": true, // Enable all strict type-checking options
+    "noEmit": true, // Prevent emitting output (when working with Next.js)
+    "esModuleInterop": true, // Enables compatibility between CommonJS and ES modules
+    "module": "esnext", // Use ESNext module system
+    "moduleResolution": "node", // Use Node module resolution strategy
+    "resolveJsonModule": true, // Allow importing JSON files
+    "isolatedModules": true, // Ensure each file is treated as an isolated module
+    "jsx": "react-jsx", // Use the new JSX transform (for React 17+)
+    "incremental": true, // Enable incremental compilation (faster builds)
+    "baseUrl": "./src", // Set base directory for module resolution
+    "forceConsistentCasingInFileNames": true, // Ensure consistent file casing
     "paths": {
-      "@components/*": ["app/components/*"],  // ✅ Fix component alias
-      "@styles/*": ["app/styles/*"],  // ✅ Fix styles alias
-      "@/*": ["*"]  // ✅ General alias for app and shared files
+      "@components/*": ["app/components/*"], // Alias for components folder
+      "@styles/*": ["app/styles/*"], // Alias for styles folder
+      "@/*": ["*"] // General alias for app and shared files
     },
     "plugins": [
       {
-        "name": "next"
+        "name": "next" // Ensure Next.js plugin is set up correctly
       }
+    ],
+    "typeRoots": [
+      "node_modules/@types", // Include type definitions from node_modules
+      "src/types" // Include custom types (if you have any custom types)
     ]
   },
   "include": [
-    "next-env.d.ts",
-    "**/*.ts",
-    "**/*.tsx",
-    ".next/types/**/*.ts",
-    "src"  // ✅ Ensure the src directory is included
-, "tailwind.config.ts", "postcss.config.mjs"  ],
-  "exclude": ["node_modules"]
+    "next-env.d.ts", // Include Next.js environment types
+    "**/*.ts", // Include all .ts files
+    "**/*.tsx", // Include all .tsx files
+    ".next/types/**/*.ts", // Include Next.js type files
+    "src", // Include the src directory for TypeScript files
+    "tailwind.config.ts", // Include Tailwind config file if you're using TypeScript
+    "postcss.config.mjs" // Include PostCSS config file (for Next.js with Tailwind)
+  ],
+  "exclude": [
+    "node_modules" // Exclude the node_modules directory from type checking
+  ]
 }

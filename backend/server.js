@@ -2,10 +2,10 @@
 import Fastify from "fastify";
 import fetch from "node-fetch";
 globalThis.fetch = fetch;
-import websocket from "@fastify/websocket";  // WebSocket package
+// import websocket from "@fastify/websocket";  // WebSocket package (commented out)
 import fastifyCors from "@fastify/cors";
 import axios from "axios";
-// import fastifySocketIO from "fastify-socket.io"; // Comment out this line
+// import fastifySocketIO from "fastify-socket.io"; // Commented out this line
 import speakeasy from "speakeasy";
 import bcrypt from "bcryptjs";
 import fastifyJwt from "@fastify/jwt";
@@ -18,7 +18,6 @@ import jwt from "jsonwebtoken";
 
 dotenv.config();
 console.log("Loaded JWT Secret:", process.env.JWT_SECRET);
-
 
 // ✅ Test Prisma Database Connection before starting the server
 async function testDatabaseConnection() {
@@ -63,7 +62,7 @@ fastify.register(fastifyJwt, {
 });
 fastify.register(fastifyCookie);
 fastify.register(fastifyFormbody);
-// Comment out the fastify-socket.io plugin registration
+// Commented out WebSocket and socket.io plugin registration
 // fastify.register(fastifySocketIO, {
 //   cors: {
 //     origin: ["http://localhost:3000"],
@@ -71,7 +70,6 @@ fastify.register(fastifyFormbody);
 //     credentials: true,
 //   },
 // });
-
 
 // In-memory cache
 const cache = new Map();
@@ -97,7 +95,7 @@ fastify.register(adminRoutes);
 fastify.register(courseRoutes);
 fastify.register(progressRoutes);
 fastify.register(analyticsRoutes);
-fastify.register(interactionRoutes)
+fastify.register(interactionRoutes);
 
 // 🔹 Register JSON Parser
 fastify.addContentTypeParser("application/json", { parseAs: "string" }, (req, body, done) => {
@@ -125,38 +123,33 @@ fastify.decorate("authenticate", async (req, reply) => {
   }
 });
 
-// WebSocket Route (Using @fastify/websocket instead of fastify-socket.io)
-fastify.register(websocket); // Register WebSocket plugin
+// Commented out WebSocket Route
+// fastify.get("/ws", { websocket: true }, (connection, req) => {
+//   // Retrieve token from `sec-websocket-protocol` header
+//   const token = req.headers["sec-websocket-protocol"];
 
-fastify.get("/ws", { websocket: true }, (connection, req) => {
-  try {
-    const token = req.headers["sec-websocket-protocol"]; // Retrieve token from headers
+//   if (!token) {
+//     console.log("❌ WebSocket authentication failed: No token provided.");
+//     connection.socket.close(401, "Unauthorized");
+//     return;
+//   }
 
-    if (!token) {
-      connection.socket.close(1008, "Unauthorized"); // Close connection if no token
-      return;
-    }
+//   try {
+//     // Verify JWT (assuming you use JWT authentication)
+//     const decoded = fastify.jwt.verify(token);
+//     console.log("✅ WebSocket authenticated for user:", decoded.userId);
 
-    // Verify token
-    jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
-      if (err) {
-        connection.socket.close(1008, "Invalid token");
-        return;
-      }
+//     // Handle messages
+//     connection.socket.on("message", (message) => {
+//       console.log("📩 Received WebSocket message:", message);
+//     });
+//   } catch (error) {
+//     console.log("❌ WebSocket authentication failed:", error.message);
+//     connection.socket.close(401, "Unauthorized");
+//   }
+// });
 
-      console.log("✅ WebSocket connected:", decoded);
-      
-      connection.socket.on("message", (message) => {
-        console.log("📩 Received:", message.toString());
-      });
 
-      connection.socket.send("🔗 Connection Established!");
-    });
-  } catch (err) {
-    console.error("❌ WebSocket Error:", err);
-    connection.socket.close(1011, "Internal Server Error");
-  }
-});
 
 // Graceful Shutdown Handling (Close Prisma)
 process.on("SIGINT", async () => {
@@ -226,44 +219,56 @@ async function findUserByEmail(email) {
 }
 
 fastify.post("/login", async (req, reply) => {
-  try {
-    const { email, password } = req.body;
-    console.log("Incoming Login Request:", { email });
+  const { email, password } = req.body;
+  console.log("🔍 Received Login Request:", req.body);
 
-    // 🔹 Check if user exists
+  // Check if password is provided for mock logins
+  if (!password) {
+    console.warn("⚠️ Password is required for mock login.");
+    return reply.status(400).send({ error: "Password is required." });
+  }
+
+  // Bypass password validation for testing based on email
+  if (email === "student@example.com") {
+    return reply.send({
+      token: "mock-student-token",
+      user: { id: 1, email: "student@example.com", role: "student" },
+    });
+  }
+  if (email === "lecturer@example.com") {
+    return reply.send({
+      token: "mock-lecturer-token",
+      user: { id: 2, email: "lecturer@example.com", role: "lecturer" },
+    });
+  }
+  if (email === "admin@example.com") {
+    return reply.send({
+      token: "mock-admin-token",
+      user: { id: 3, email: "admin@example.com", role: "admin" },
+    });
+  }
+
+  // Proceed with normal authentication if email does not match mock emails
+  try {
     const user = await findUserByEmail(email);
     if (!user) {
-      console.warn("Login failed: User not found");
       return reply.status(401).send({ error: "Invalid email or password" });
     }
 
-    console.log("User found:", { id: user.id, role: user.role });
-
-    // 🔹 Verify password
     const isValidPassword = await bcrypt.compare(password, user.password);
     if (!isValidPassword) {
-      console.warn("Login failed: Incorrect password");
       return reply.status(401).send({ error: "Invalid email or password" });
     }
 
-    // ✅ Validate Role (Ensure case insensitivity)
-    const validRoles = ["admin", "student", "lecturer"];
-    const userRole = user.role.toLowerCase(); // Normalize role
-    if (!validRoles.includes(userRole)) {
-      console.error("Invalid role detected:", user.role);
-      return reply.status(403).send({ error: "Invalid role, please contact support." });
-    }
-
-    // ✅ Generate JWT token securely
     const token = jwt.sign(
-      { userId: user.id, role: userRole },
+      { userId: user.id, role: user.role },
       process.env.JWT_SECRET,
       { expiresIn: "2h" }
     );
 
     return reply.send({
       token,
-      user: { id: user.id, email: user.email, role: userRole }, // Ensure lowercase role is sent
+      user: { id: user.id, email: user.email, role: user.role },
     });
 
   } catch (error) {

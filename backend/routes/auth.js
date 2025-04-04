@@ -39,8 +39,16 @@ export default fastifyPlugin(async (fastify, opts) => {
       },
     });
 
-    // Send the token back to the client
-    reply.send({ token });
+    // Based on user role, send a redirect URL
+    let redirectUrl = "/dashboard"; // Default dashboard
+    if (user.role === "admin") {
+      redirectUrl = "/admin/dashboard";
+    } else if (user.role === "manager") {
+      redirectUrl = "/manager/dashboard";
+    }
+
+    // Send the token and redirect URL back to the client
+    reply.send({ token, redirectUrl });
   });
 
   fastify.post("/auth/request-reset", async (req, reply) => {

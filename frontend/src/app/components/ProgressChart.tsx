@@ -1,137 +1,89 @@
-// ProgressChart.tsx
+"use client";
 import React, { useEffect, useState } from "react";
 import { Line } from "react-chartjs-2";
-import { socket } from "../socket"; // ✅ Correct named import
 import axios from "axios";
-import { Chart, LineController, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend } from "chart.js";
+import {
+  Chart,
+  LineController,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+  ChartOptions,
+} from "chart.js";
 
 // Register Chart.js components
 Chart.register(LineController, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend);
 
-interface ProgressData {
-  id: string;
-  progress: number;
-  updatedAt: string;
+interface WeeklyProgressChartProps {
+  id: string;  // Single prop for both studentId and courseId
 }
 
-interface Student {
-  id: string;
-  name: string;
+interface WeeklyProgressData {
+  week: string;
+  avg_progress: number;
 }
 
-interface Course {
-  id: string;
-  name: string;
-}
+const WeeklyProgressChart: React.FC<WeeklyProgressChartProps> = ({ id }) => {
+  // Use `id` for both studentId and courseId
+  const studentId = id;
+  const courseId = id;
 
-interface ProgressChartProps {
-  id: string;  // Accepting id prop
-}
-
-const ProgressChart: React.FC<ProgressChartProps> = ({ id }) => {
-  const [progressData, setProgressData] = useState<ProgressData[]>([]);
-  const [students, setStudents] = useState<Student[]>([]);
-  const [courses, setCourses] = useState<Course[]>([]);
-  const [selectedStudent, setSelectedStudent] = useState<string>("");
-  const [selectedCourse, setSelectedCourse] = useState<string>("");
+  const [weeklyData, setWeeklyData] = useState<WeeklyProgressData[]>([]);
 
   useEffect(() => {
     async function fetchData() {
       try {
-        const [progressRes, studentsRes, coursesRes] = await Promise.all([
-          axios.get("http://localhost:5000/progress"),
-          axios.get("http://localhost:5000/students"),
-          axios.get("http://localhost:5000/courses"),
-        ]);
-
-        setProgressData(progressRes.data);
-        setStudents(studentsRes.data);
-        setCourses(coursesRes.data);
+        const response = await axios.get("http://localhost:5000/weekly-progress", {
+          params: { studentId, courseId },
+        });
+        setWeeklyData(response.data);
       } catch (error) {
-        console.error("Error fetching data:", error);
+        console.error("Error fetching weekly progress:", error);
       }
     }
 
     fetchData();
-
-    socket.on("progress_broadcast", (data: ProgressData) => {
-      setProgressData((prevData) => [...prevData, data]);
-    });
-
-    return () => socket.off("progress_broadcast");
-  }, []);
-
-  // Handle Filter Change
-  const fetchFilteredProgress = async () => {
-    try {
-      const response = await axios.get("http://localhost:5000/progress", {
-        params: {
-          lecturerId: id,  // Use the lecturer's id
-          studentId: selectedStudent || undefined,
-          courseId: selectedCourse || undefined,
-        },
-      });
-
-      setProgressData(response.data);
-    } catch (error) {
-      console.error("Error fetching filtered progress:", error);
-    }
-  };
+  }, [studentId, courseId]); // Dependency array now just listens for `id`
 
   const chartData = {
-    labels: progressData.map((entry) => new Date(entry.updatedAt).toLocaleTimeString()),
+    labels: weeklyData.map((entry) => new Date(entry.week).toLocaleDateString()),
     datasets: [
       {
-        label: "Student Progress (%)",
-        data: progressData.map((entry) => entry.progress),
-        borderColor: "rgb(75, 192, 192)",
-        backgroundColor: "rgba(75, 192, 192, 0.2)",
+        label: "Average Weekly Progress (%)",
+        data: weeklyData.map((entry) => entry.avg_progress),
+        borderColor: "rgb(255, 99, 132)",
+        backgroundColor: "rgba(255, 99, 132, 0.2)",
         borderWidth: 2,
       },
     ],
   };
 
-  const options = {
+  const options: ChartOptions<"line"> = {
     responsive: true,
     plugins: {
-      legend: { position: "top" as const },
-      title: { display: true, text: "Real-Time Student Progress" },
+      legend: { position: "top" },
+      title: { display: true, text: "Weekly Student Progress" },
+    },
+    scales: {
+      x: {
+        type: "category",
+      },
+      y: {
+        beginAtZero: true,
+      },
     },
   };
 
   return (
     <div>
-      <h2>📊 Student Progress Over Time</h2>
-
-      {/* Filters */}
-      <div>
-        <label>Filter by Student:</label>
-        <select value={selectedStudent} onChange={(e) => setSelectedStudent(e.target.value)}>
-          <option value="">All Students</option>
-          {students.map((student) => (
-            <option key={student.id} value={student.id}>
-              {student.name}
-            </option>
-          ))}
-        </select>
-
-        <label>Filter by Course:</label>
-        <select value={selectedCourse} onChange={(e) => setSelectedCourse(e.target.value)}>
-          <option value="">All Courses</option>
-          {courses.map((course) => (
-            <option key={course.id} value={course.id}>
-              {course.name}
-            </option>
-          ))}
-        </select>
-
-        <button onClick={fetchFilteredProgress}>Apply Filters</button>
-      </div>
-
-      {/* Chart */}
+      <h2>📅 Weekly Progress Trends</h2>
       <Line data={chartData} options={options} />
     </div>
   );
 };
 
-export default ProgressChart;
+export default WeeklyProgressChart;

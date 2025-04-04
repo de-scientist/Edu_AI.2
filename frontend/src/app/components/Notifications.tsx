@@ -1,14 +1,18 @@
 "use client";
 import { useEffect, useState } from "react";
-import { io } from "socket.io-client";
 
-const socket = io("http://localhost:5000");
+// Define the type for notifications
+interface Notification {
+  message: string;
+}
 
 export default function Notifications() {
-  const [notifications, setNotifications] = useState([]);
+  // Explicitly define the state type
+  const [notifications, setNotifications] = useState<Notification[]>([]);
 
+  /*
   useEffect(() => {
-    socket.on("receive_notification", (data) => {
+    socket.on("receive_notification", (data: Notification) => {
       setNotifications((prev) => [...prev, data]);
     });
 
@@ -16,6 +20,7 @@ export default function Notifications() {
       socket.off("receive_notification");
     };
   }, []);
+  */
 
   return (
     <div>
