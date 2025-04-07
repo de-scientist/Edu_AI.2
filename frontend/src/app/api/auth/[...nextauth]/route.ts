@@ -1,57 +1,80 @@
-import NextAuth, { NextAuthOptions } from "next-auth";
+import NextAuth from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 
-const authOptions: NextAuthOptions = {
+export const authOptions = {
   providers: [
     CredentialsProvider({
       name: "Credentials",
       credentials: {
-        email: { label: "Email", type: "email", placeholder: "user@example.com" },
+        email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" }
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) {
-          throw new Error("Email and password are required.");
+          throw new Error("Missing credentials");
         }
 
-        const users = [
-          { id: "1", email: "admin@example.com", password: "admin123", role: "admin" },
-          { id: "2", email: "student@example.com", password: "student123", role: "student" },
-          { id: "3", email: "lecturer@example.com", password: "lecturer123", role: "lecturer" }
-        ];
+        try {
+          const res = await fetch("http://localhost:5000/auth/login", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              email: credentials.email,
+              password: credentials.password,
+            }),
+          });
 
-        const user = users.find(
-          u => u.email === credentials.email && u.password === credentials.password
-        );
+          const data = await res.json();
 
-        if (!user) {
-          throw new Error("Invalid email or password.");
+          if (!res.ok) {
+            console.error("Auth error:", data);
+            throw new Error(data.message || "Authentication failed");
+          }
+
+          return {
+            id: data.user.id,
+            email: data.user.email,
+            name: data.user.name || data.user.email,
+            role: data.user.role,
+            token: data.token,
+          };
+        } catch (error) {
+          console.error("Auth error:", error);
+          throw new Error(error.message || "Authentication failed");
         }
-
-        return { id: user.id, email: user.email, role: user.role }; // Ensuring `id` and `role` are included
-      }
+      },
     })
   ],
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        token.id = user.id; // ✅ Ensure `id` persists
+        token.id = user.id;
         token.role = user.role;
+        token.token = user.token;
       }
       return token;
     },
     async session({ session, token }) {
-      if (session.user) {
-        session.user.id = token.id as string; // ✅ Ensure `id` is available
-        session.user.role = token.role as string;
+      if (token) {
+        session.user.id = token.id;
+        session.user.role = token.role;
+        session.user.token = token.token;
       }
       return session;
-    }
+    },
   },
-  secret: process.env.NEXTAUTH_SECRET,
+  pages: {
+    signIn: "/auth/signin",
+    error: "/auth/error",
+  },
   session: {
-    strategy: "jwt" // ✅ Using JWT to store sessions
-  }
+    strategy: "jwt",
+    maxAge: 30 * 24 * 60 * 60, // 30 days
+  },
+  debug: process.env.NODE_ENV === "development",
+  secret: process.env.NEXTAUTH_SECRET,
 };
 
 const handler = NextAuth(authOptions);

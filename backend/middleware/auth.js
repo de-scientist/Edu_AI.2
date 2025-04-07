@@ -1,6 +1,6 @@
 import jwt from "jsonwebtoken";
 
-export default async function myPreHandler(req, reply) {
+export const authenticate = async function(req, reply) {
     try {
         const routePath = req.url;  // Ensure correct route handling
 

@@ -1,0 +1,23 @@
+{
+  "name": "edu_ai",
+  "version": "1.0.0",
+  "description": "AI-Powered Education System",
+  "main": "index.js",
+  "scripts": {
+    "start:backend": "cd backend; node server.js",
+    "start:frontend": "cd frontend; npm start",
+    "dev": "concurrently \"npm run start:backend\" \"npm run start:frontend\"",
+    "install:all": "npm install; cd backend; npm install; cd ../frontend; npm install"
+  },
+  "keywords": [
+    "education",
+    "ai",
+    "learning",
+    "platform"
+  ],
+  "author": "Mark Kinyanjui - De-scientist",
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+} 

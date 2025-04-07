@@ -1,24 +1,34 @@
-const fastify = require("fastify")();
-const { PrismaClient } = require("@prisma/client");
+import prisma from "../prisma/db.js";
+import { authenticate } from "../middleware/auth.js";
 
-const prisma = new PrismaClient();
+export default async function gamificationRoutes(fastify, options) {
+  fastify.post("/api/earn-points", { preHandler: authenticate }, async (request, reply) => {
+    try {
+      const { studentId, points } = request.body;
 
-fastify.post("/earn-points", async (req, reply) => {
-  const { studentId, points } = req.body;
+      await prisma.student.update({
+        where: { id: studentId },
+        data: { points: { increment: points } },
+      });
 
-  await prisma.student.update({
-    where: { id: studentId },
-    data: { points: { increment: points } },
+      return reply.send({ message: "Points added!" });
+    } catch (error) {
+      console.error("Error adding points:", error);
+      return reply.status(500).send({ error: "Failed to add points" });
+    }
   });
 
-  reply.send({ message: "Points added!" });
-});
+  fastify.get("/api/leaderboard", { preHandler: authenticate }, async (request, reply) => {
+    try {
+      const leaderboard = await prisma.student.findMany({
+        orderBy: { points: "desc" },
+        take: 10,
+      });
 
-fastify.get("/leaderboard", async (req, reply) => {
-  const leaderboard = await prisma.student.findMany({
-    orderBy: { points: "desc" },
-    take: 10,
+      return reply.send(leaderboard);
+    } catch (error) {
+      console.error("Error fetching leaderboard:", error);
+      return reply.status(500).send({ error: "Failed to fetch leaderboard" });
+    }
   });
-
-  reply.send(leaderboard);
-});
+}

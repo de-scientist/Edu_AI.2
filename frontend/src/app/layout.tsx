@@ -1,31 +1,34 @@
-"use client";
+import type { Metadata } from "next";
+import { Inter } from "next/font/google";
+import "./globals.css";
+import Navbar from "./components/Navbar";
+import Footer from "./components/Footer";
+import { Providers } from "./components/Providers";
 
-import { SessionProvider } from "next-auth/react";
-import { ReactNode } from "react";
-import { usePathname } from "next/navigation";
-import "@/app/globals.css"; // Global styles
-import "@/app/output.css"; // TailwindCSS output styles
-import Navbar from "@components/Navbar";
-import Sidebar from "@components/Sidebar";
-import Footer from "@components/Footer";
+const inter = Inter({ subsets: ["latin"] });
 
-export default function RootLayout({ children }: { children: ReactNode }) {
-  const pathname = usePathname(); // Ensure usePathname is used correctly
-  const isHomePage = pathname === "/"; // Check if it's the homepage
+export const metadata: Metadata = {
+  title: "Edu_AI - AI-Powered Education Platform",
+  description: "An AI-powered education platform for personalized learning experiences",
+};
 
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
   return (
-    // Manually include <html> and <body> tags
-    <html lang="en">
-      <body>
-        <SessionProvider>
-          <div className="min-h-screen flex flex-col pt-20 pb-16">
+    <html lang="en" suppressHydrationWarning>
+      <body className={inter.className} suppressHydrationWarning>
+        <Providers>
+          <div className="min-h-screen flex flex-col bg-white dark:bg-gray-900" suppressHydrationWarning>
             <Navbar />
-            {/* Only render Sidebar if it's not the home page */}
-            {!isHomePage && <Sidebar />}
-            <main className="flex-grow">{children}</main>
+            <main className="flex-grow container mx-auto px-4 py-8" suppressHydrationWarning>
+              {children}
+            </main>
             <Footer />
           </div>
-        </SessionProvider>
+        </Providers>
       </body>
     </html>
   );

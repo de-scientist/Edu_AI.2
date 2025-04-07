@@ -2,138 +2,111 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
+import { useSession } from "next-auth/react";
+import DashboardCard from "@/app/components/DashboardCard";
+import WeeklyProgressChart from "@/app/components/ProgressChart";
+import LecturerSidebar from "@/app/components/lecturer/LecturerSidebar";
+import CourseManagement from "@/app/components/lecturer/CourseManagement";
+import StudentAnalytics from "@/app/components/lecturer/StudentAnalytics";
+import LiveInteraction from "@/app/components/lecturer/LiveInteraction";
+import AssessmentTools from "@/app/components/lecturer/AssessmentTools";
+import FeedbackSystem from "@/app/components/lecturer/FeedbackSystem";
+import Communication from "@/app/components/lecturer/Communication";
+import AIAssistant from "@/app/components/lecturer/AIAssistant";
+import { LecturerDashboardProvider } from "../contexts/LecturerDashboardContext";
+import LoadingSpinner from "@/app/components/LoadingSpinner";
 
-import Navbar from "../components/Navbar";
-import Sidebar from "../components/Sidebar";
-import ReminderScheduler from "@/app/components/ReminderScheduler";
-import ProgressChart from "@/app/components/ProgressChart";
-import GoalTracker from "@/app/components/GoalTracker";
-import { Quiz } from "@/app/components/Quiz";
-import Recommendation from "@/app/components/Recommendations";
-import PerformanceDashboard from "@/app/components/PerformanceDashboard";
-
-export default function LecturerDashboard() {
+const LecturerDashboard = () => {
   const router = useRouter();
-  const [id, setId] = useState<string | null>(null);
-  const [email, setEmail] = useState<string>("");
-  const [password, setPassword] = useState<string>("");
-  const [error, setError] = useState<string | null>(null);
-
-  const users = [
-    { email: "student@example.com", password: "student123", id: "1", role: "student" },
-    { email: "lecturer@example.com", password: "lecturer123", id: "2", role: "lecturer" },
-    { email: "admin@example.com", password: "admin123", id: "3", role: "admin" }
-  ];
-
-  const handleLogin = () => {
-    const user = users.find(u => u.email === email && u.password === password);
-    if (!user) return setError("Invalid email or password.");
-    if (user.role !== "lecturer") return setError("You do not have permission to access the lecturer dashboard.");
-
-    setId(user.id);
-  };
+  const { data: session, status } = useSession();
+  const [activeTab, setActiveTab] = useState("overview");
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    if (id) {
-      // Could set additional state like teaching subjects, etc.
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (status === "unauthenticated") {
+      router.push("/auth/signin");
+    } else if (status === "authenticated" && session?.user?.role?.toLowerCase() !== "lecturer") {
+      router.push("/unauthorized");
     }
-  }, [id]);
+  }, [status, session, router]);
+
+  if (!mounted || status === "loading") {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+        <LoadingSpinner />
+      </div>
+    );
+  }
+
+  if (status === "unauthenticated") {
+    return null;
+  }
+
+  const renderContent = () => {
+    switch (activeTab) {
+      case "overview":
+        return (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <DashboardCard title="Courses">
+              <div className="text-3xl font-bold text-blue-600">12</div>
+            </DashboardCard>
+            <DashboardCard title="Students">
+              <div className="text-3xl font-bold text-green-600">245</div>
+            </DashboardCard>
+            <DashboardCard title="Sessions">
+              <div className="text-3xl font-bold text-purple-600">48</div>
+            </DashboardCard>
+            <div className="col-span-full">
+              <WeeklyProgressChart id="lecturer-1" />
+            </div>
+          </div>
+        );
+      case "courses":
+        return <CourseManagement />;
+      case "analytics":
+        return <StudentAnalytics />;
+      case "interaction":
+        return <LiveInteraction />;
+      case "assessment":
+        return <AssessmentTools />;
+      case "feedback":
+        return <FeedbackSystem />;
+      case "communication":
+        return <Communication />;
+      case "ai-assistant":
+        return <AIAssistant />;
+      default:
+        return null;
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-white via-blue-50 to-blue-100 p-6">
-      <div className="max-w-6xl mx-auto space-y-6">
-        <motion.h1
-          className="text-4xl font-extrabold text-blue-700"
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-        >
-          🧑‍🏫 Lecturer Dashboard
-        </motion.h1>
-        <motion.p
-          className="text-blue-500 text-sm tracking-wide"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.3 }}
-        >
-          Teach. Guide. Evaluate.
-        </motion.p>
-
-        <AnimatePresence mode="wait">
-          {!id && (
-            <motion.div
-              key="login"
-              className="bg-white rounded-2xl shadow-xl p-8 max-w-md mx-auto mt-10 space-y-6"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.5 }}
-            >
-              <h2 className="text-xl font-semibold text-blue-700">Login to Continue</h2>
-
-              <input
-                type="email"
-                className="w-full px-4 py-3 border border-blue-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="Email"
-              />
-
-              <input
-                type="password"
-                className="w-full px-4 py-3 border border-blue-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-400"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Password"
-              />
-
-              {error && <p className="text-red-500 text-sm">{error}</p>}
-
-              <button
-                onClick={handleLogin}
-                className="w-full bg-blue-600 text-white py-3 rounded-xl hover:bg-blue-700 transition-all"
+    <LecturerDashboardProvider>
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+        <div className="container mx-auto px-4 py-8">
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            <div className="lg:col-span-1">
+              <LecturerSidebar activeTab={activeTab} onTabChange={setActiveTab} />
+            </div>
+            <div className="lg:col-span-3">
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5 }}
               >
-                Login
-              </button>
-            </motion.div>
-          )}
-
-          {id && (
-            <motion.div
-              key="dashboard"
-              className="space-y-6"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.6, delay: 0.2 }}
-            >
-              <div className="flex gap-4">
-                <Navbar />
-                <Sidebar />
-              </div>
-
-              {[
-                { component: <ReminderScheduler id={id} />, key: "reminder" },
-                { component: <ProgressChart id={id} />, key: "chart" },
-                { component: <GoalTracker id={id} />, key: "goals" },
-                { component: <Quiz id={id} />, key: "quiz" },
-                { component: <Recommendation id={id} />, key: "recommendation" },
-                { component: <PerformanceDashboard id={id} />, key: "performance" },
-              ].map(({ component, key }, index) => (
-                <motion.div
-                  key={key}
-                  className="bg-white p-6 rounded-2xl shadow-md"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.4, delay: 0.1 + index * 0.1 }}
-                >
-                  {component}
-                </motion.div>
-              ))}
-            </motion.div>
-          )}
-        </AnimatePresence>
+                {renderContent()}
+              </motion.div>
+            </div>
+          </div>
+        </div>
       </div>
-    </div>
+    </LecturerDashboardProvider>
   );
-}
+};
+
+export default LecturerDashboard;

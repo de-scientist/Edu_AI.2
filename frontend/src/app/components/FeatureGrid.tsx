@@ -1,5 +1,5 @@
 "use client";
-import React from "react";  // Ensure React is imported for JSX
+import React, { useState, useEffect } from "react";  // Ensure React is imported for JSX
 import { motion } from "framer-motion";
 
 // Define the features
@@ -27,8 +27,19 @@ const features = [
 ];
 
 export default function FeatureGrid() {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Don't render anything until mounted to prevent hydration issues
+  if (!mounted) {
+    return null;
+  }
+
   return (
-    <section className="grid grid-cols-1 md:grid-cols-3 gap-6 px-6 mt-10">
+    <section className="grid grid-cols-1 md:grid-cols-3 gap-6 px-6 mt-10" suppressHydrationWarning>
       {features.map((feature, i) => (
         <motion.div
           key={i}
@@ -36,9 +47,10 @@ export default function FeatureGrid() {
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: i * 0.3, duration: 0.6 }}
+          suppressHydrationWarning
         >
-          <h2 className="text-2xl font-semibold text-shadow text-center">{feature.title}</h2>
-          <div className="mt-4 text-lg text-center">
+          <h2 className="text-2xl font-semibold text-shadow text-center" suppressHydrationWarning>{feature.title}</h2>
+          <div className="mt-4 text-lg text-center" suppressHydrationWarning>
             {/* Render content conditionally */}
             {typeof feature.content === "string" ? (
               feature.content // Render plain text content

@@ -5,66 +5,43 @@
 @tailwind utilities;
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-  --font-sans: Arial, Helvetica, sans-serif;
-  --font-mono: monospace;
+  --foreground-rgb: 0, 0, 0;
+  --background-start-rgb: 255, 255, 255;
+  --background-end-rgb: 255, 255, 255;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+.dark {
+  --foreground-rgb: 255, 255, 255;
+  --background-start-rgb: 17, 24, 39;
+  --background-end-rgb: 17, 24, 39;
 }
 
 body {
-  background-color: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-sans);
-  transition: background-color 0.3s ease, color 0.3s ease;
+  color: rgb(var(--foreground-rgb));
+  background: rgb(var(--background-start-rgb));
 }
 
-/* Tailwind Enhancements */
 @layer base {
-  h1, h2, h3, h4, h5, h6 {
-    font-family: var(--font-sans);
-    font-weight: bold;
-  }
-
-  p {
-    font-family: var(--font-sans);
-    line-height: 1.6;
+  body {
+    @apply text-gray-900 dark:text-gray-100;
   }
 }
 
 @layer components {
-  .btn {
-    padding-left: 1rem;  /* px-4 */
-    padding-right: 1rem; /* px-4 */
-    padding-top: 0.5rem; /* py-2 */
-    padding-bottom: 0.5rem; /* py-2 */
-    border-radius: 0.5rem; /* rounded-lg */
-    font-weight: bold; 
-    transition-property: background-color, color; /* transition-colors */
-  }
-
   .btn-primary {
-    background-color: #2563eb; /* bg-blue-600 */
-    color: white; /* text-white */
+    @apply px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors;
   }
-
-  .btn-primary:hover {
-    background-color: #1d4ed8; /* hover:bg-blue-700 */
-  }
-
+  
   .btn-secondary {
-    background-color: #4b5563; /* bg-gray-600 */
-    color: white; /* text-white */
+    @apply px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors;
   }
 
-  .btn-secondary:hover {
-    background-color: #374151; /* hover:bg-gray-700 */
+  .input-field {
+    @apply w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500;
+  }
+
+  .card {
+    @apply bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6;
   }
 }
 

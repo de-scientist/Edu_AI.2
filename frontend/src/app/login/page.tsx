@@ -32,19 +32,44 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSubmit }) => {
     setLoading(true);
     setError(null);
 
-    // Mock login logic
-    if (email === "lecturer@example.com" && password === "password123") {
-      // Redirect to the lecturer page
-      router.push("/lecturer");
-    } else if (email === "admin@example.com" && password === "password123") {
-      // Redirect to the admin page
-      router.push("/admin");
-    } else {
-      // Handle invalid login attempt
-      setError("Invalid email or password");
-    }
+    try {
+      const response = await fetch("http://localhost:5000/auth/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email, password }),
+      });
 
-    setLoading(false);
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to sign in");
+      }
+
+      // Store token and user data
+      localStorage.setItem("token", data.token);
+      localStorage.setItem("user", JSON.stringify(data.user));
+
+      // Redirect based on user role
+      switch (data.user.role.toLowerCase()) {
+        case "admin":
+          router.push("/admin");
+          break;
+        case "lecturer":
+          router.push("/lecturer");
+          break;
+        case "student":
+          router.push("/student");
+          break;
+        default:
+          setError("Invalid user role");
+      }
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Failed to sign in");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

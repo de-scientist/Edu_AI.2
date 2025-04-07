@@ -1,7 +1,11 @@
 {
   "compilerOptions": {
     "target": "ES2017", // Set target to ES2017
-    "lib": ["dom", "dom.iterable", "esnext"], // Include necessary libraries
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ], // Include necessary libraries
     "allowJs": true, // Allow JavaScript files to be included
     "skipLibCheck": true, // Skip type checking of declaration files (improves performance)
     "strict": true, // Enable all strict type-checking options
@@ -11,14 +15,20 @@
     "moduleResolution": "node", // Use Node module resolution strategy
     "resolveJsonModule": true, // Allow importing JSON files
     "isolatedModules": true, // Ensure each file is treated as an isolated module
-    "jsx": "react-jsx", // Use the new JSX transform (for React 17+)
+    "jsx": "preserve", // Use the new JSX transform (for React 17+)
     "incremental": true, // Enable incremental compilation (faster builds)
     "baseUrl": "./src", // Set base directory for module resolution
     "forceConsistentCasingInFileNames": true, // Ensure consistent file casing
     "paths": {
-      "@components/*": ["app/components/*"], // Alias for components folder
-      "@styles/*": ["app/styles/*"], // Alias for styles folder
-      "@/*": ["*"] // General alias for app and shared files
+      "@components/*": [
+        "app/components/*"
+      ], // Alias for components folder
+      "@styles/*": [
+        "app/styles/*"
+      ], // Alias for styles folder
+      "@/*": [
+        "*"
+      ] // General alias for app and shared files
     },
     "plugins": [
       {

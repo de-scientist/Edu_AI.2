@@ -3,43 +3,70 @@
 import { signOut, useSession } from "next-auth/react";
 import { useState } from "react";
 import Link from "next/link";
+import { motion } from "framer-motion";
+import { usePathname } from "next/navigation";
+import {
+  Home,
+  BookOpen,
+  Calendar,
+  MessageSquare,
+  Settings,
+  BarChart2,
+  Award,
+  Bookmark,
+} from "lucide-react";
 
-export default function Sidebar() {
-  const { data: session } = useSession();
-  const [isSidebarVisible, setSidebarVisible] = useState(true); // Toggle sidebar visibility for mobile responsiveness
+const menuItems = [
+  { name: "Dashboard", href: "/dashboard", icon: Home },
+  { name: "Courses", href: "/courses", icon: BookOpen },
+  { name: "Schedule", href: "/schedule", icon: Calendar },
+  { name: "Chat", href: "/chat", icon: MessageSquare },
+  { name: "Performance", href: "/performance", icon: BarChart2 },
+  { name: "Achievements", href: "/achievements", icon: Award },
+  { name: "Bookmarks", href: "/bookmarks", icon: Bookmark },
+  { name: "Settings", href: "/settings", icon: Settings },
+];
 
-  if (!session?.user) return null; // Return nothing if user is not logged in
-
-  const handleLogout = () => {
-    signOut(); // Log the user out
-  };
+const Sidebar = () => {
+  const pathname = usePathname();
 
   return (
-    <>
-      {/* Sidebar */}
-      <aside className={`w-64 h-screen bg-gray-800 text-white p-4 ${isSidebarVisible ? 'block' : 'hidden'}`}>
-        <h2 className="text-lg font-bold mb-4">Menu</h2>
-        <ul className="mt-4 space-y-2">
-          <li>
-            <Link href="/dashboard" className="hover:text-gray-400">Dashboard</Link>
-          </li>
-          <li>
-            <Link href="/settings" className="hover:text-gray-400">Settings</Link>
-          </li>
-          <li>
-            <button onClick={handleLogout} className="w-full text-left hover:text-gray-400">
-              Logout
-            </button>
-          </li>
-        </ul>
-      </aside>
+    <motion.aside
+      initial={{ x: -250 }}
+      animate={{ x: 0 }}
+      className="w-64 bg-white dark:bg-gray-800 shadow-lg h-screen fixed left-0 top-16 overflow-y-auto"
+    >
+      <nav className="mt-5 px-2">
+        <div className="space-y-1">
+          {menuItems.map((item) => {
+            const isActive = pathname === item.href;
+            const Icon = item.icon;
 
-      {/* Sidebar Toggle Button (for mobile view) */}
-      <button 
-        className="fixed top-4 left-4 text-white p-3 bg-gray-800 rounded-full md:hidden" 
-        onClick={() => setSidebarVisible(!isSidebarVisible)}>
-        ☰
-      </button>
-    </>
+            return (
+              <Link
+                key={item.name}
+                href={item.href}
+                className={`group flex items-center px-2 py-2 text-sm font-medium rounded-md transition-colors ${
+                  isActive
+                    ? "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300"
+                    : "text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
+                }`}
+              >
+                <Icon
+                  className={`mr-3 h-5 w-5 ${
+                    isActive
+                      ? "text-blue-700 dark:text-blue-300"
+                      : "text-gray-400 group-hover:text-gray-500 dark:text-gray-400 dark:group-hover:text-gray-300"
+                  }`}
+                />
+                {item.name}
+              </Link>
+            );
+          })}
+        </div>
+      </nav>
+    </motion.aside>
   );
-}
+};
+
+export default Sidebar;
